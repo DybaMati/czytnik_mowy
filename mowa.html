@@ -3,67 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nasłuchiwanie cyfr wersja 002</title>
+<title>Nasłuchiwanie cyfr wersja 003</title>
 <style>
-body {
-    font-family: Arial, sans-serif;
-    padding: 20px;
-    position: relative;
-    background: #f8f9fa;
-}
-button {
-    font-size: 18px;
-    padding: 12px 24px;
-    margin: 10px 10px 0 0;
-    cursor: pointer;
-    border: none;
-    border-radius: 6px;
-}
+body { font-family: Arial, sans-serif; padding: 20px; background: #f8f9fa; }
+button { font-size: 18px; padding: 12px 24px; margin: 10px 10px 0 0; cursor: pointer; border: none; border-radius: 6px; }
 #toggle { background: #28a745; color: white; }
 #unlock { background: #dc3545; color: white; }
-table {
-    border-collapse: collapse;
-    margin-top: 20px;
-    width: 100%;
-    max-width: 500px;
-}
-th, td {
-    border: 1px solid #ccc;
-    padding: 12px;
-    font-size: 24px;
-    text-align: center;
-}
+table { border-collapse: collapse; margin-top: 20px; width: 100%; max-width: 500px; }
+th, td { border: 1px solid #ccc; padding: 12px; font-size: 24px; text-align: center; }
 th { background: #e9ecef; }
-.new-row { background: #d4edda; transition: background 1s; }
-#lock {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.7);
-    z-index: 1000;
-    touch-action: none;
-}
-#lock span {
-    color: #fff;
-    font-size: 24px;
-    position: absolute;
-    bottom: 40px;
-    width: 100%;
-    text-align: center;
-}
-#info {
-    font-size: 18px;
-    margin-top: 15px;
-    color: #333;
-}
-#version {
-    position: fixed;
-    bottom: 10px;
-    right: 15px;
-    font-size: 16px;
-    color: #666;
-    font-weight: bold;
-}
+.new-row { background: #d4edda; transition: background 1.2s; }
+#lock { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; touch-action: none; }
+#lock span { color: #fff; font-size: 24px; position: absolute; bottom: 40px; width: 100%; text-align: center; }
+#info { font-size: 18px; margin-top: 15px; color: #333; }
+#version { position: fixed; bottom: 10px; right: 15px; font-size: 16px; color: #666; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -71,7 +24,7 @@ th { background: #e9ecef; }
 <h2>Nasłuchiwanie cyfr po 2</h2>
 <button id="toggle">🎙 START</button>
 <button id="unlock" style="display:none;">⛔ STOP</button>
-<p id="info">Kliknij START, aby rozpocząć. Mów pary cyfr, np. „24 56” lub „13 12”.</p>
+<p id="info">Kliknij START i mów pary cyfr (np. „24 56”, „13 12”).</p>
 
 <div id="lock"><span>Ekran zablokowany – nagrywanie aktywne</span></div>
 
@@ -79,14 +32,14 @@ th { background: #e9ecef; }
     <tr><th>#</th><th>Numer</th></tr>
 </table>
 
-<div id="version">002 | 2025-12-26</div>
+<div id="version">003 | 2025-12-26</div>
 
 <script>
 let counter = 1;
 let listening = false;
 let wakeLock = null;
 let lastTranscript = "";
-let versionCounter = 2;
+let versionCounter = 3;
 
 const table = document.getElementById("table");
 const toggleBtn = document.getElementById("toggle");
@@ -97,46 +50,32 @@ const versionDiv = document.getElementById("version");
 
 function updateVersionDisplay() {
     const now = new Date();
-    const str = versionCounter.toString().padStart(3,'0') + " | " +
-        now.getFullYear() + "-" +
-        (now.getMonth()+1).toString().padStart(2,'0') + "-" +
-        now.getDate().toString().padStart(2,'0') + " " +
-        now.getHours().toString().padStart(2,'0') + ":" +
-        now.getMinutes().toString().padStart(2,'0') + ":" +
-        now.getSeconds().toString().padStart(2,'0');
-    versionDiv.textContent = str;
+    versionDiv.textContent = `${versionCounter.toString().padStart(3,'0')} | ${now.toLocaleString('pl-PL', {dateStyle: 'short', timeStyle: 'medium'})}`;
 }
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 if (!SpeechRecognition) {
-    info.textContent = "Twoja przeglądarka nie wspiera rozpoznawania mowy.";
+    info.textContent = "Przeglądarka nie wspiera rozpoznawania mowy.";
 } else {
     const recognition = new SpeechRecognition();
     recognition.lang = "pl-PL";
     recognition.interimResults = false;
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    recognition.continuous = !isMobile; // ciągłe na desktopie, przerywane na mobile
+    recognition.continuous = !isMobile;
 
     async function enableWakeLock() {
-        try {
-            wakeLock = await navigator.wakeLock.request("screen");
-        } catch (e) {
-            console.log("WakeLock nieudany:", e);
-        }
+        try { wakeLock = await navigator.wakeLock.request("screen"); }
+        catch (e) { console.log("WakeLock error:", e); }
     }
 
     function disableWakeLock() {
-        if (wakeLock) {
-            wakeLock.release().catch(() => {});
-            wakeLock = null;
-        }
+        if (wakeLock) wakeLock.release().catch(() => {});
     }
 
     toggleBtn.onclick = async () => {
         if (!listening) {
-            lastTranscript = "";
             try {
                 recognition.start();
                 listening = true;
@@ -144,7 +83,7 @@ if (!SpeechRecognition) {
                 unlockBtn.style.display = "inline-block";
                 lockDiv.style.display = "block";
                 await enableWakeLock();
-                info.textContent = "Nagrywanie… mów pary cyfr (np. „24 56”)";
+                info.textContent = "Nagrywanie… mów pary cyfr.";
             } catch (e) {
                 info.textContent = "Błąd startu: " + e.message;
             }
@@ -158,50 +97,45 @@ if (!SpeechRecognition) {
         unlockBtn.style.display = "none";
         lockDiv.style.display = "none";
         disableWakeLock();
-        info.textContent = "Nagrywanie zatrzymane.";
+        info.textContent = "Zatrzymano.";
     };
 
     function addDigits(text) {
-        // Wyciągamy wszystkie cyfry z tekstu
         const allDigits = text.replace(/\D/g, '');
-        if (allDigits.length === 0) {
-            info.textContent = "Nie rozpoznano cyfr";
+        if (allDigits.length < 2) {
+            info.textContent = "Za mało cyfr – spróbuj jeszcze raz";
             return;
         }
 
         // Bierzemy ostatnie 4 cyfry
         let combined = allDigits.slice(-4);
 
-        // Sprawdzamy duplikat z poprzednim wierszem
-        const lastRow = table.rows[table.rows.length - 1];
-        if (lastRow && lastRow.cells[1].textContent === combined) {
-            return;
-        }
-
-        // Dodajemy wiersz
         const row = table.insertRow();
         row.insertCell().textContent = counter++;
         row.insertCell().textContent = combined;
         row.classList.add("new-row");
         setTimeout(() => row.classList.remove("new-row"), 1200);
 
-        info.textContent = "Dodano: " + combined;
+        info.textContent = "Dodano: " + combined + " – słucham dalej…";
+
         versionCounter++;
         updateVersionDisplay();
 
-        // Synteza mowy – mówimy cyfry pojedynczo
+        // SZYBSZA synteza mowy
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
-            const speakStr = combined.split('').join(' ');
-            const utterance = new SpeechSynthesisUtterance(speakStr);
+            const utterance = new SpeechSynthesisUtterance(combined.split('').join(' '));
             utterance.lang = "pl-PL";
+            utterance.rate = 1.25;         // szybciej
+            utterance.pitch = 1.1;         // lekko wyżej
+            utterance.volume = 0.9;
             window.speechSynthesis.speak(utterance);
         }
     }
 
     recognition.onresult = (event) => {
         const text = event.results[0][0].transcript.trim();
-        if (text === lastTranscript) return;
+        if (text === lastTranscript) return; // unikamy powtórzeń
         lastTranscript = text;
 
         console.log("Rozpoznano:", text);
@@ -209,10 +143,8 @@ if (!SpeechRecognition) {
     };
 
     recognition.onerror = (e) => {
-        console.log("Błąd rozpoznawania:", e.error);
-        if (e.error === "no-speech" || e.error === "aborted") {
-            // ciche błędy – restartujemy bez komunikatu
-        } else {
+        console.log("Błąd:", e.error);
+        if (e.error !== "no-speech" && e.error !== "aborted") {
             info.textContent = "Błąd: " + e.error;
         }
     };
@@ -221,11 +153,10 @@ if (!SpeechRecognition) {
         if (listening) {
             setTimeout(() => {
                 if (listening) recognition.start();
-            }, 80);
+            }, 30); // bardzo szybki restart
         }
     };
 }
 </script>
-
 </body>
-</html>
+</html>1111111111111111111111111111111111
