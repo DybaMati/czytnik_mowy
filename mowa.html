@@ -3,21 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rozpoznawanie cyfr głosowo (z logami)</title>
+    <title>Rozpoznawanie cyfr – finalna wersja</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-        #tabela { width: 80%; margin: 20px auto; border-collapse: collapse; }
-        #tabela th, #tabela td { border: 1px solid #ccc; padding: 15px; font-size: 20px; }
-        #cyfry { font-size: 56px; font-weight: bold; letter-spacing: 5px; }
-        button { padding: 12px 24px; font-size: 18px; margin: 10px; }
-        #status { font-size: 20px; margin: 20px; color: #333; }
-        .info { max-width: 800px; margin: 20px auto; text-align: left; background: #f0f0f0; padding: 15px; border-radius: 8px; }
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background: #f9f9f9; }
+        h1 { color: #333; }
+        #tabela { width: 90%; max-width: 800px; margin: 30px auto; border-collapse: collapse; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        #tabela th, #tabela td { border: 1px solid #ddd; padding: 20px; font-size: 24px; }
+        #cyfry { font-size: 64px; font-weight: bold; letter-spacing: 8px; color: #2c3e50; }
+        button { padding: 15px 30px; font-size: 20px; margin: 15px; cursor: pointer; border: none; border-radius: 8px; background: #3498db; color: white; }
+        button:hover { background: #2980b9; }
+        button#stop { background: #e74c3c; }
+        button#stop:hover { background: #c0392b; }
+        #status { font-size: 22px; margin: 20px; color: #27ae60; font-weight: bold; }
+        .info { max-width: 800px; margin: 20px auto; padding: 15px; background: #ecf0f1; border-radius: 8px; text-align: left; font-size: 16px; }
     </style>
 </head>
 <body>
-    <h1>Rozpoznawanie cyfr mówionych</h1>
-    <p>Mów cyfry po dwie (np. "pięć cztery", krótka przerwa, "cztery pięć"). Skrypt zapisze je w ciągłej sekwencji.</p>
-    <p><strong>Otwórz konsolę przeglądarki (F12 → Console)</strong>, żeby zobaczyć szczegółowe logi tego, co słyszę i zapisuję.</p>
+    <h1>Rozpoznawanie cyfr głosowo</h1>
+    <p>Mów cyfry po dwie lub więcej: „pięć dziewięć”, „cztery dwa”, „pięćdziesiąt dziewięć czterdzieści dwa” itd.</p>
+    <p><strong>Otwórz konsolę (F12 → Console)</strong>, żeby widzieć dokładnie co słyszę i zapisuję.</p>
 
     <button id="start">Rozpocznij nasłuchiwanie</button>
     <button id="stop">Zatrzymaj</button>
@@ -38,84 +42,142 @@
     </table>
 
     <div class="info">
-        <strong>Uwaga:</strong> Działa najlepiej w Google Chrome. W Safari rozpoznawanie mowy jest mocno ograniczone lub niedostępne.
+        <strong>Wskazówki:</strong><br>
+        • Mów wyraźnie, z krótkimi przerwami między grupami cyfr.<br>
+        • Działa w Chrome, Edge, Opera. W Safari – bardzo ograniczone rozpoznawanie.<br>
+        • Przykłady: „pięć dziewięć cztery dwa” → doda 5942<br>
+        • Lub: „pięćdziesiąt dziewięć czterdzieści dwa” → też doda 5942
     </div>
 
     <script>
+        // Sprawdź, czy przeglądarka wspiera rozpoznawanie mowy
+        if (!('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+            document.getElementById('status').textContent = 'Twoja przeglądarka nie obsługuje rozpoznawania mowy!';
+            document.getElementById('status').style.color = 'red';
+            document.querySelectorAll('button').forEach(b => b.disabled = true);
+        }
+
         const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'pl-PL';
-        recognition.continuous = true;     // ciągłe nasłuchiwanie
-        recognition.interimResults = true; // pokazuje wyniki tymczasowe
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
 
-        let finalDigits = ''; // ostateczny ciąg cyfr
+        let finalDigits = '';
 
-        const polishToDigit = {
+        // Mapowanie polskich słów na cyfry (pełne i potoczne)
+        const wordToDigit = {
             'zero': '0', 'jeden': '1', 'dwa': '2', 'trzy': '3', 'cztery': '4',
-            'pięć': '5', 'sześć': '6', 'siedem': '7', 'osiem': '8', 'dziewięć': '9'
+            'pięć': '5', 'sześć': '6', 'siedem': '7', 'osiem': '8', 'dziewięć': '9',
+            'jedynka': '1', 'dwójka': '2', 'trójka': '3', 'czwórka': '4',
+            'piątka': '5', 'szóstka': '6', 'siódemka': '7', 'ósemka': '8', 'dziewiątka': '9'
+        };
+
+        // Mapowanie dziesiątek (dla "pięćdziesiąt" itp.)
+        const tensWords = {
+            'dziesięć': '10', 'dwadzieścia': '20', 'trzydzieści': '30', 'czterdzieści': '40',
+            'pięćdziesiąt': '50', 'sześćdziesiąt': '60', 'siedemdziesiąt': '70',
+            'osiemdziesiąt': '80', 'dziewięćdziesiąt': '90'
         };
 
         function extractDigits(transcript) {
-            console.log('Surowy tekst z mikrofonu:', transcript);
-            const words = transcript.toLowerCase().trim().split(/\s+/);
-            let digits = '';
-            for (let word of words) {
-                if (polishToDigit[word]) {
-                    digits += polishToDigit[word];
-                    console.log(`Rozpoznano słowo "${word}" → cyfra "${polishToDigit[word]}"`);
+            console.log('%cSurowy tekst:', 'color: #3498db; font-weight: bold;', transcript);
+
+            let cleanText = transcript.toLowerCase().trim();
+            let extracted = '';
+
+            // 1. Próba rozpoznania liczb dwucyfrowych typu "pięćdziesiąt dziewięć"
+            const words = cleanText.split(/\s+/);
+            let i = 0;
+            while (i < words.length) {
+                // Sprawdź, czy to dziesiątka + jedność (np. pięćdziesiąt dziewięć)
+                if (tensWords[words[i]] && i + 1 < words.length && wordToDigit[words[i + 1]]) {
+                    extracted += tensWords[words[i]].charAt(0) + wordToDigit[words[i + 1]];
+                    console.log(`Rozpoznano dwucyfrową: ${words[i]} ${words[i+1]} → ${extracted.slice(-2)}`);
+                    i += 2;
+                    continue;
+                }
+
+                // Sprawdź same dziesiątki (np. "czterdzieści")
+                if (tensWords[words[i]]) {
+                    extracted += tensWords[words[i]];
+                    console.log(`Rozpoznano dziesiątkę: ${words[i]} → ${tensWords[words[i]]}`);
+                    i++;
+                    continue;
+                }
+
+                // Sprawdź pojedyncze cyfry słowem
+                if (wordToDigit[words[i]]) {
+                    extracted += wordToDigit[words[i]];
+                    console.log(`Rozpoznano słowo: ${words[i]} → ${wordToDigit[words[i]]}`);
+                    i++;
+                    continue;
+                }
+
+                i++;
+            }
+
+            // 2. Jeśli nic nie znaleziono słowami – weź same cyfry z tekstu (gdy mówi "59 42")
+            if (extracted === '') {
+                const onlyDigits = cleanText.replace(/[^0-9]/g, '');
+                if (onlyDigits) {
+                    extracted = onlyDigits;
+                    console.log('%cZnaleziono cyfry bezpośrednio w tekście:', 'color: #e67e22; font-weight: bold;', onlyDigits);
                 }
             }
-            console.log('Wyodrębnione cyfry z tej frazy:', digits || '(brak)');
-            return digits;
+
+            console.log('%cWyodrębnione cyfry z frazy:', 'color: #27ae60; font-weight: bold;', extracted || '(brak)');
+            return extracted;
         }
 
         recognition.onresult = (event) => {
-            let interimTranscript = '';
-            let finalTranscriptThisEvent = '';
+            let interim = '';
+            let newFinal = '';
 
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const transcript = event.results[i][0].transcript;
                 const digits = extractDigits(transcript);
 
                 if (event.results[i].isFinal) {
-                    finalTranscriptThisEvent += digits;
+                    newFinal += digits;
                 } else {
-                    interimTranscript += digits;
+                    interim += digits;
                 }
             }
 
-            // Jeśli przybyły nowe ostateczne cyfry
-            if (finalTranscriptThisEvent) {
-                const previousLength = finalDigits.length;
-                finalDigits += finalTranscriptThisEvent;
-                console.log(`DODANO nowe cyfry: "${finalTranscriptThisEvent}"`);
-                console.log(`Aktualny pełny ciąg cyfr: "${finalDigits}" (długość: ${finalDigits.length})`);
+            if (newFinal) {
+                finalDigits += newFinal;
+                console.log('%cDODANO DO CIĄGU:', 'color: #9b59b6; font-size: 16px; font-weight: bold;', newFinal);
+                console.log('%cPEŁNY CIĄG TERAZ:', 'color: #9b59b6; font-size: 18px; font-weight: bold;', finalDigits);
             }
 
-            // Wyświetlanie w tabeli (ostateczne + tymczasowe)
-            const displayText = finalDigits + interimTranscript;
-            document.getElementById('cyfry').textContent = displayText || '—';
+            const display = finalDigits + interim;
+            document.getElementById('cyfry').textContent = display || '—';
         };
 
         recognition.onerror = (event) => {
-            console.error('Błąd rozpoznawania mowy:', event.error);
+            console.error('Błąd rozpoznawania:', event.error);
             document.getElementById('status').textContent = 'Błąd: ' + event.error;
+            document.getElementById('status').style.color = 'red';
         };
 
         recognition.onstart = () => {
-            console.log('Nasłuchiwanie rozpoczęte');
-            document.getElementById('status').textContent = 'Nasłuchiwanie aktywne... Mów cyfry!';
+            console.log('%cNASŁUCHIWANIE ROZPOCZĘTE', 'color: #27ae60; font-size: 18px; font-weight: bold;');
+            document.getElementById('status').textContent = 'Nasłuchiwanie aktywne – mów cyfry!';
+            document.getElementById('status').style.color = '#27ae60';
         };
 
         recognition.onend = () => {
-            console.log('Nasłuchiwanie zatrzymane');
+            console.log('%cNasłuchiwanie zatrzymane', 'color: #e74c3c;');
             document.getElementById('status').textContent = 'Nasłuchiwanie zatrzymane';
+            document.getElementById('status').style.color = '#7f8c8d';
         };
 
         document.getElementById('start').onclick = () => {
-            finalDigits = ''; // opcjonalnie wyczyść przy nowym starcie
+            finalDigits = '';
             document.getElementById('cyfry').textContent = '—';
-            console.clear(); // czyści konsolę dla lepszej czytelności
-            console.log('=== NOWA SESJA ===');
+            console.clear();
+            console.log('%c=== NOWA SESJA – ROZPOCZYNAM NASŁUCHIWANIE ===', 'color: #f1c40f; font-size: 20px; font-weight: bold; background: #2c3e50; padding: 10px;');
             recognition.start();
         };
 
@@ -124,4 +186,4 @@
         };
     </script>
 </body>
-</html>55555555555555555555555555555555
+</html>
