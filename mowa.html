@@ -1,167 +1,133 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nasłuchiwanie cyfr v005</title>
-<style>
-body {
-    font-family: Arial, sans-serif;
-    padding: 20px;
-    background: #f8f9fa;
-    margin: 0;
-}
-h2 { margin-top: 0; }
-button {
-    font-size: 20px;
-    padding: 14px 30px;
-    margin: 10px 10px 0 0;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-}
-#toggle { background: #28a745; color: white; }
-#unlock { background: #dc3545; color: white; }
-table {
-    border-collapse: collapse;
-    margin-top: 20px;
-    width: 100%;
-    max-width: 400px;
-}
-th, td {
-    border: 1px solid #ccc;
-    padding: 12px;
-    font-size: 26px;
-    text-align: center;
-}
-th { background: #e9ecef; }
-.new-row { background: #d4edda; transition: background 1s; }
-#info {
-    font-size: 18px;
-    margin: 15px 0;
-    color: #333;
-}
-#version {
-    position: fixed;
-    bottom: 10px;
-    right: 15px;
-    font-size: 14px;
-    color: #777;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rozpoznawanie cyfr głosowo</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+        #tabela { width: 80%; margin: 20px auto; border-collapse: collapse; }
+        #tabela th, #tabela td { border: 1px solid #ccc; padding: 10px; }
+        #cyfry { font-size: 48px; font-weight: bold; }
+        button { padding: 10px 20px; font-size: 18px; margin: 10px; }
+        #status { font-size: 20px; margin: 20px; }
+    </style>
 </head>
 <body>
+    <h1>Rozpoznawanie cyfr mówionych</h1>
+    <p>Mów cyfry po dwie (np. "pięć cztery", "cztery pięć") z krótkimi przerwami. Skrypt będzie łączył je w ciąg (np. 5445) i odczytywał na głos co dwie cyfry.</p>
+    
+    <button id="start">Rozpocznij nasłuchiwanie</button>
+    <button id="stop">Zatrzymaj</button>
+    
+    <div id="status">Status: Gotowy</div>
+    
+    <table id="tabela">
+        <thead>
+            <tr>
+                <th>Zapisane cyfry</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td id="cyfry"></td>
+            </tr>
+        </tbody>
+    </table>
 
-<h2>Nasłuchiwanie cyfr po 2</h2>
-<button id="toggle">🎙 START</button>
-<button id="unlock" style="display:none;">⛔ STOP</button>
-<p id="info">START → mów pary cyfr (np. „dwadzieścia cztery trzydzieści siedem”)</p>
+    <script>
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = 'pl-PL'; // Język polski
+        recognition.continuous = true;
+        recognition.interimResults = true;
 
-<table id="table">
-    <tr><th>#</th><th>Numer</th></tr>
-</table>
+        let finalDigits = '';
+        let lastSpokenIndex = 0; // Indeks do śledzenia, które pary już odczytano
 
-<div id="version">005 | 2025-12-26</div>
+        const polishToDigit = {
+            'zero': '0', 'jeden': '1', 'dwa': '2', 'trzy': '3', 'cztery': '4',
+            'pięć': '5', 'sześć': '6', 'siedem': '7', 'osiem': '8', 'dziewięć': '9'
+        };
 
-<script>
-let counter = 1;
-let listening = false;
-let lastTranscript = "";
+        function extractDigits(transcript) {
+            const words = transcript.toLowerCase().trim().split(/\s+/);
+            let digits = '';
+            for (let word of words) {
+                if (polishToDigit[word]) {
+                    digits += polishToDigit[word];
+                }
+            }
+            return digits;
+        }
 
-const table = document.getElementById("table");
-const toggleBtn = document.getElementById("toggle");
-const unlockBtn = document.getElementById("unlock");
-const info = document.getElementById("info");
+        function speakPairs() {
+            const newPairsLength = Math.floor(finalDigits.length / 2);
+            const newPairsStart = lastSpokenIndex;
 
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (newPairsLength > newPairsStart) {
+                const toSpeak = finalDigits.substring(newPairsStart * 2, newPairsLength * 2);
+                const pairs = toSpeak.match(/.{2}/g) || [];
+                pairs.forEach(pair => {
+                    const first = pair[0];
+                    const second = pair[1] || '';
+                    const words = [digitToPolish(first)];
+                    if (second) words.push(digitToPolish(second));
 
-if (!SpeechRecognition) {
-    info.textContent = "Przeglądarka nie wspiera rozpoznawania mowy.";
-} else {
-    const recognition = new SpeechRecognition();
-    recognition.lang = "pl-PL";
-    recognition.interimResults = false;
-
-    // NA IOS ZAWSZE continuous = false !!!
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    recognition.continuous = !isIOS; // tylko na Androidzie i desktopie ciągłe
-
-    toggleBtn.onclick = () => {
-        if (!listening) {
-            try {
-                recognition.start();
-                listening = true;
-                toggleBtn.style.display = "none";
-                unlockBtn.style.display = "inline-block";
-                info.textContent = "Słucham… mów pary cyfr";
-            } catch (e) {
-                info.textContent = "Błąd startu: " + e.message;
+                    const utter = new SpeechSynthesisUtterance(words.join(' '));
+                    utter.lang = 'pl-PL';
+                    utter.rate = 1.8; // Szybkość 1.8
+                    speechSynthesis.speak(utter);
+                });
+                lastSpokenIndex = newPairsLength;
             }
         }
-    };
 
-    unlockBtn.onclick = () => {
-        recognition.stop();
-        listening = false;
-        toggleBtn.style.display = "inline-block";
-        unlockBtn.style.display = "none";
-        info.textContent = "Zatrzymano.";
-    };
+        const digitToPolish = {
+            '0': 'zero', '1': 'jeden', '2': 'dwa', '3': 'trzy', '4': 'cztery',
+            '5': 'pięć', '6': 'sześć', '7': 'siedem', '8': 'osiem', '9': 'dziewięć'
+        };
 
-    function addDigits(text) {
-        const digitsOnly = text.replace(/\D/g, '');
-        if (digitsOnly.length < 2) {
-            info.textContent = "Za mało cyfr – mów dalej";
-            return;
-        }
+        recognition.onresult = (event) => {
+            let interim = '';
+            let final = finalDigits;
 
-        const number = digitsOnly.slice(-4);
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const res = event.results[i][0].transcript.trim();
+                const digits = extractDigits(res);
 
-        const row = table.insertRow();
-        row.insertCell().textContent = counter++;
-        row.insertCell().textContent = number;
-        row.classList.add("new-row");
-        setTimeout(() => row.classList.remove("new-row"), 1000);
+                if (event.results[i].isFinal) {
+                    final += digits;
+                } else {
+                    interim += digits;
+                }
+            }
 
-        info.textContent = "OK: " + number + " – słucham…";
+            const display = final + interim;
+            document.getElementById('cyfry').textContent = display || '—';
 
-        // BARDZO SZYBKA synteza mowy
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(number.split('').join(' '));
-            utterance.lang = "pl-PL";
-            utterance.rate = 1.8;     // jeszcze szybciej
-            utterance.pitch = 1.05;   // lekko wyżej, brzmi naturalniej
-            utterance.volume = 1.0;
-            window.speechSynthesis.speak(utterance);
-        }
-    }
+            if (final.length > finalDigits.length) {
+                finalDigits = final;
+                speakPairs();
+            }
+        };
 
-    recognition.onresult = (event) => {
-        const text = event.results[0][0].transcript.trim();
-        if (text === lastTranscript) return;
-        lastTranscript = text;
+        recognition.onerror = (event) => {
+            document.getElementById('status').textContent = 'Błąd: ' + event.error;
+        };
 
-        console.log("Rozpoznano:", text);
-        addDigits(text);
-    };
+        recognition.onend = () => {
+            document.getElementById('status').textContent = 'Nasłuchiwanie zatrzymane';
+        };
 
-    recognition.onerror = (e) => {
-        console.log("Błąd:", e.error);
-        if (e.error !== "no-speech" && e.error !== "aborted") {
-            info.textContent = "Błąd: " + e.error;
-        }
-    };
+        document.getElementById('start').onclick = () => {
+            recognition.start();
+            document.getElementById('status').textContent = 'Nasłuchiwanie aktywne... Mów cyfry!';
+        };
 
-    recognition.onend = () => {
-        if (listening) {
-            // Na iOS restartujemy natychmiast po zakończeniu
-            setTimeout(() => {
-                if (listening) recognition.start();
-            }, isIOS ? 100 : 20); // na iOS dajemy 100 ms, żeby nie było za szybko i nie blokowało
-        }
-    };
-}
-</script>
+        document.getElementById('stop').onclick = () => {
+            recognition.stop();
+        };
+    </script>
+    <p><strong>Uwaga:</strong> Rozpoznawanie mowy (mikrofon) działa w pełni tylko w przeglądarkach opartych na Chromium (Google Chrome, Edge, Opera). W Safari rozpoznawanie mowy jest ograniczone lub niedostępne. Odczytywanie na głos działa w Chrome i Safari.</p>
 </body>
-</html>55555555555555555555
+</html>vvvvvvvvvvvvvvvvvvvvvvvvvv
