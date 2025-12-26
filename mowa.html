@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cyfry po 4 – działa na iPhonie</title>
+    <title>Cyfry po 4 – działa na iPhonie (z pauzą mikrofonu)</title>
     <style>
         body { font-family: -apple-system, Arial, sans-serif; text-align: center; margin: 0; padding: 20px; background: #f4f6f9; }
         h1 { font-size: 28px; color: #2c3e50; }
@@ -23,9 +23,10 @@
     <table id="tabela"><thead><tr><th>Grupy</th></tr></thead><tbody id="rows"></tbody></table>
     <div class="info">
         <strong>Na iPhonie (Safari):</strong><br>
-        • Mikrofon zatrzymuje się na 1.5s podczas mówienia grupy<br>
-        • Potwierdzenie głosowe od razu po każdej grupie 4 cyfr<br>
-        • Żadnej lawiny na końcu!
+        • Mikrofon pauzuje na ~1.8s podczas powtarzania grupy<br>
+        • Potwierdzenie głosowe OD RAZU po każdej grupie<br>
+        • Mów dalej – mikrofon wraca szybko!<br><br>
+        Jeśli pauza za krótka/długa – zmień liczbę 1800 na 1200-2500.
     </div>
 
     <script>
@@ -34,7 +35,7 @@
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            alert('Użyj Safari na iPhonie!');
+            alert('Tylko Safari na iPhonie obsługuje rozpoznawanie mowy!');
             return;
         }
 
@@ -57,18 +58,22 @@
             speechSynthesis.speak(utter);
         }
 
-        function pauseRecognitionAndSpeak(group) {
+        function pauseAndSpeak(group) {
+            if (isPausedForSpeak) return; // unikamy nakładania się
             isPausedForSpeak = true;
-            recognition.stop(); // Zatrzymujemy mikrofon
+            recognition.stop();
 
-            // Mówimy grupę
             speakGroup(group);
 
-            // Po 1.5s restartujemy nasłuchiwanie (czas na potwierdzenie)
+            // <<< TUTAJ ZMIEŃ CZAS PAUZY jeśli potrzeba (w milisekundach) >>>
             setTimeout(() => {
                 isPausedForSpeak = false;
-                recognition.start();
-            }, 1500); // Dostosuj jeśli potrzeba (1-2s)
+                try {
+                    recognition.start();
+                } catch (e) {
+                    console.log('Restart mikrofonu nieudany – kliknij Rozpocznij ponownie');
+                }
+            }, 1800); // 1800 ms = 1.8 sekundy – idealne dla większości iPhone'ów
         }
 
         function addGroup(group) {
@@ -77,12 +82,11 @@
             cell.textContent = group;
             row.appendChild(cell);
             tbody.appendChild(row);
-            row.scrollIntoView({behavior: 'smooth'});
+            row.scrollIntoView({behavior:'smooth'});
 
-            // Potwierdzamy głosowo z zatrzymaniem mikrofonu
-            pauseRecognitionAndSpeak(group);
+            pauseAndSpeak(group);
 
-            statusEl.textContent = `Dodano: ${group} (potwierdzam...)`;
+            statusEl.textContent = `Dodano i powtarzam: ${group}`;
             statusEl.style.color = '#27ae60';
         }
 
@@ -95,7 +99,7 @@
         }
 
         recognition.onresult = (event) => {
-            if (isPausedForSpeak) return; // Nie przetwarzamy podczas pauzy
+            if (isPausedForSpeak) return;
 
             let hasNew = false;
             for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -109,24 +113,26 @@
         };
 
         recognition.onerror = (event) => {
-            statusEl.textContent = 'Błąd: ' + event.error;
+            statusEl.textContent = 'Błąd mikrofonu: ' + event.error;
             statusEl.style.color = '#d63031';
         };
 
         recognition.onstart = () => {
-            statusEl.textContent = 'Mów cyfry!';
+            statusEl.textContent = 'Mów cyfry – słucham!';
             statusEl.style.color = '#27ae60';
         };
 
         recognition.onend = () => {
             if (!isPausedForSpeak) {
-                statusEl.textContent = 'Zatrzymano – kliknij ponownie';
+                statusEl.textContent = 'Mikrofon zatrzymany – kliknij Rozpocznij';
             }
-            processBuffer(); // Dodaj resztę
+            processBuffer();
         };
 
         document.getElementById('start').onclick = () => {
-            // Prime dźwięku na iOS
+            buffer = '';
+            tbody.innerHTML = '';
+            // Odblokowanie dźwięku na iOS
             speechSynthesis.speak(new SpeechSynthesisUtterance(''));
             recognition.start();
         };
