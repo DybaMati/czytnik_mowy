@@ -3,26 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rozpoznawanie cyfr – grupy w wierszach + powtarzanie</title>
+    <title>Rozpoznawanie cyfr – wersja na iPhone</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background: #f4f6f9; }
+        body { font-family: -apple-system, Arial, sans-serif; text-align: center; margin-top: 50px; background: #f4f6f9; -webkit-user-select: none; }
         h1 { color: #2c3e50; }
-        #tabela { width: 90%; max-width: 800px; margin: 30px auto; border-collapse: collapse; background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        #tabela th { background: #3498db; color: white; padding: 15px; font-size: 24px; }
-        #tabela td { padding: 15px; font-size: 48px; font-weight: bold; letter-spacing: 6px; text-align: center; border-bottom: 1px solid #eee; }
-        button { padding: 15px 30px; font-size: 20px; margin: 15px; cursor: pointer; border: none; border-radius: 8px; color: white; }
+        #tabela { width: 90%; max-width: 800px; margin: 30px auto; border-collapse: collapse; background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 12px; overflow: hidden; }
+        #tabela th { background: #3498db; color: white; padding: 20px; font-size: 24px; }
+        #tabela td { padding: 20px; font-size: 56px; font-weight: bold; letter-spacing: 8px; text-align: center; border-bottom: 1px solid #eee; }
+        button { padding: 18px 36px; font-size: 22px; margin: 20px; cursor: pointer; border: none; border-radius: 12px; color: white; font-weight: bold; }
         #start { background: #27ae60; }
         #start:hover { background: #219a52; }
         #stop { background: #e74c3c; }
         #stop:hover { background: #c0392b; }
-        #status { font-size: 22px; margin: 20px; font-weight: bold; }
-        .info { max-width: 800px; margin: 20px auto; padding: 15px; background: #ecf0f1; border-radius: 8px; text-align: left; }
+        #status { font-size: 24px; margin: 30px; font-weight: bold; min-height: 60px; }
+        .info { max-width: 800px; margin: 20px auto; padding: 20px; background: #fff3cd; border-radius: 12px; text-align: left; font-size: 18px; border: 1px solid #ffeaa7; }
+        .warning { color: #d63031; font-weight: bold; }
     </style>
 </head>
 <body>
     <h1>Rozpoznawanie grup cyfr</h1>
-    <p>Mów grupy cyfr (np. „pięćdziesiąt dziewięć czterdzieści dwa”), zrób krótką przerwę – doda się jako nowy wiersz i zostanie powtórzony na głos.</p>
-    <p><strong>F12 → Console</strong> – zobaczysz pełne logi.</p>
+    <p>Mów grupy cyfr z krótkimi przerwami (np. „pięćdziesiąt dziewięć czterdzieści dwa”).</p>
 
     <button id="start">Rozpocznij nasłuchiwanie</button>
     <button id="stop">Zatrzymaj</button>
@@ -35,30 +35,34 @@
                 <th>Zapisane grupy cyfr</th>
             </tr>
         </thead>
-        <tbody id="rows">
-            <!-- Wiersze będą dodawane tutaj -->
-        </tbody>
+        <tbody id="rows"></tbody>
     </table>
 
     <div class="info">
-        <strong>Przykład działania:</strong><br>
-        Mówisz: „pięćdziesiąt dziewięć czterdzieści dwa” → przerwa → dodaje wiersz <strong>5942</strong> i mówi na głos: „pięć dziewięć cztery dwa” (szybko, rate 1.8)<br><br>
-        Potem: „dwadzieścia trzy piętnaście” → dodaje <strong>2315</strong> i powtarza tę grupę.
+        <strong>Na iPhonie:</strong><br>
+        • Używaj <strong>Safari</strong> – tam działa najlepiej (rozpoznawanie + głośne powtarzanie).<br>
+        • W Chrome na iOS rozpoznawanie mowy niestety nie działa.<br><br>
+        <span class="warning">Po kliknięciu „Rozpocznij” – zezwól na mikrofon i dotknij ekranu, jeśli nie słyszysz głosu.</span>
     </div>
 
     <script>
-        if (!('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
-            alert('Twoja przeglądarka nie obsługuje rozpoznawania mowy!');
+        const tbody = document.getElementById('rows');
+        const statusEl = document.getElementById('status');
+
+        // Sprawdź wsparcie dla rozpoznawania mowy
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            statusEl.textContent = 'Twoja przeglądarka nie wspiera rozpoznawania mowy!';
+            statusEl.style.color = '#d63031';
+            document.getElementById('start').disabled = true;
+            alert('Użyj Safari na iPhonie – tam działa rozpoznawanie mowy!');
         }
 
-        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        const recognition = new SpeechRecognition();
         recognition.lang = 'pl-PL';
         recognition.continuous = true;
         recognition.interimResults = true;
 
-        const tbody = document.getElementById('rows');
-
-        // Mapa cyfr na polskie słowa do odczytu
         const digitToPolish = {
             '0': 'zero', '1': 'jeden', '2': 'dwa', '3': 'trzy', '4': 'cztery',
             '5': 'pięć', '6': 'sześć', '7': 'siedem', '8': 'osiem', '9': 'dziewięć'
@@ -66,78 +70,70 @@
 
         function speakGroup(group) {
             if (!group) return;
-            const words = [];
-            for (let digit of group) {
-                words.push(digitToPolish[digit]);
-            }
+            const words = group.split('').map(d => digitToPolish[d]);
             const text = words.join(' ');
             const utter = new SpeechSynthesisUtterance(text);
             utter.lang = 'pl-PL';
-            utter.rate = 1.8; // szybkie powtarzanie
+            utter.rate = 1.8;
+
+            // Pomoc na iOS – próbujemy odblokować audio
+            utter.onstart = () => console.log('Mówię:', text);
+            utter.onerror = (e) => console.error('Błąd mowy:', e);
+
             speechSynthesis.speak(utter);
-            console.log('%cODCZYTANO NA GŁOS:', 'color: #e67e22; font-weight: bold;', text);
         }
 
         function extractDigits(transcript) {
-            console.log('%cSurowy tekst:', 'color: #3498db; font-weight: bold;', transcript);
-            const clean = transcript.trim();
-            const onlyDigits = clean.replace(/[^0-9]/g, '');
-            if (onlyDigits) {
-                console.log('%cZnaleziono cyfry bezpośrednio:', 'color: #e67e22;', onlyDigits);
-            }
-            console.log('%cWyodrębnione cyfry z frazy:', 'color: #27ae60; font-weight: bold;', onlyDigits || '(brak)');
-            return onlyDigits;
+            return transcript.trim().replace(/[^0-9]/g, '');
         }
 
         recognition.onresult = (event) => {
             let finalGroup = '';
 
             for (let i = event.resultIndex; i < event.results.length; i++) {
-                const transcript = event.results[i][0].transcript;
-                const digits = extractDigits(transcript);
-
+                const digits = extractDigits(event.results[i][0].transcript);
                 if (event.results[i].isFinal && digits) {
                     finalGroup = digits;
                 }
             }
 
-            // Jeśli mamy nową potwierdzoną grupę
             if (finalGroup) {
-                // Dodaj nowy wiersz do tabeli
                 const row = document.createElement('tr');
                 const cell = document.createElement('td');
                 cell.textContent = finalGroup;
                 row.appendChild(cell);
                 tbody.appendChild(row);
 
-                console.log('%cDODANO NOWĄ GRUPĘ DO TABELI:', 'color: #9b59b6; font-size: 18px; font-weight: bold;', finalGroup);
-
-                // Powtórz na głos tylko tę nową grupę
                 speakGroup(finalGroup);
+                statusEl.textContent = `Dodano: ${finalGroup} (powtórzono na głos)`;
+                statusEl.style.color = '#27ae60';
             }
         };
 
         recognition.onerror = (event) => {
-            console.error('Błąd:', event.error);
-            document.getElementById('status').textContent = 'Błąd: ' + event.error;
-            document.getElementById('status').style.color = 'red';
+            console.error('Błąd rozpoznawania:', event.error);
+            if (event.error === 'not-allowed') {
+                statusEl.textContent = 'Brak dostępu do mikrofonu!';
+                statusEl.style.color = '#d63031';
+            }
         };
 
         recognition.onstart = () => {
-            console.log('%cNASŁUCHIWANIE ROZPOCZĘTE', 'color: #27ae60; font-size: 18px; font-weight: bold;');
-            document.getElementById('status').textContent = 'Nasłuchiwanie aktywne – mów grupy cyfr!';
-            document.getElementById('status').style.color = '#27ae60';
+            statusEl.textContent = 'Nasłuchiwanie aktywne – mów grupy cyfr!';
+            statusEl.style.color = '#27ae60';
         };
 
         recognition.onend = () => {
-            console.log('%cNasłuchiwanie zatrzymane', 'color: #e74c3c;');
-            document.getElementById('status').textContent = 'Nasłuchiwanie zatrzymane';
+            statusEl.textContent = 'Nasłuchiwanie zatrzymane';
+            statusEl.style.color = '#7f8c8d';
         };
 
         document.getElementById('start').onclick = () => {
-            tbody.innerHTML = ''; // wyczyść tabelę
-            console.clear();
-            console.log('%c=== NOWA SESJA ===', 'color: #f1c40f; font-size: 22px; font-weight: bold; background: #2c3e50; padding: 10px;');
+            tbody.innerHTML = '';
+            statusEl.textContent = 'Przygotowuję...';
+            // Mały trik na iOS – odblokowanie audio po dotknięciu
+            const utter = new SpeechSynthesisUtterance('');
+            speechSynthesis.speak(utter);
             recognition.start();
         };
 
@@ -146,4 +142,4 @@
         };
     </script>
 </body>
-</html>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+</html>44444444444444444444444444444444444444444ggg
