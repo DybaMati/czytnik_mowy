@@ -3,118 +3,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4 cyfry → potwierdzenie → kontynuuj</title>
+    <title>Cyfry po 4 – działa na iPhonie</title>
     <style>
-        body {font-family: -apple-system,Arial; text-align:center; padding:20px; background:#f8f9fa; margin:0;}
-        h1 {font-size:28px; color:#1e272e;}
-        button {width:90%; max-width:500px; padding:20px; margin:15px; font-size:28px; border:none; border-radius:16px; color:white; font-weight:bold;}
-        #start {background:#27ae60;}
-        #stop {background:#e74c3c;}
-        #status {font-size:26px; padding:20px; background:white; border-radius:16px; margin:20px; box-shadow:0 4px 15px rgba(0,0,0,0.1);}
-        #tabela td {font-size:68px; letter-spacing:12px; padding:28px; font-weight:bold;}
-        .info {background:#fff3cd; padding:20px; border-radius:16px; margin:20px; font-size:18px;}
+        body { font-family: -apple-system, Arial, sans-serif; text-align: center; margin: 0; padding: 20px; background: #f4f6f9; }
+        h1 { font-size: 28px; color: #2c3e50; }
+        button { width: 90%; padding: 20px; font-size: 28px; margin: 15px; border-radius: 16px; color: white; }
+        #start { background: #27ae60; }
+        #stop { background: #e74c3c; }
+        #status { font-size: 26px; margin: 30px; font-weight: bold; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        #tabela td { font-size: 64px; letter-spacing: 12px; padding: 25px; }
+        .info { font-size: 20px; padding: 20px; background: #fff3cd; border-radius: 12px; margin: 30px; }
     </style>
 </head>
 <body>
     <h1>Grupy po 4 cyfry</h1>
-    <button id="start">▶ ROZPOCZNIJ</button>
-    <button id="stop">■ ZATRZYMAJ</button>
-    <div id="status">Gotowy – dotknij Rozpocznij</div>
+    <button id="start">▶ Rozpocznij</button>
+    <button id="stop">■ Zatrzymaj</button>
+    <div id="status">Dotknij Rozpocznij i mów</div>
     <table id="tabela"><thead><tr><th>Grupy</th></tr></thead><tbody id="rows"></tbody></table>
-
     <div class="info">
-        <strong>Działa idealnie na iPhonie (Safari!)</strong><br>
-        Po każdej grupie 4 cyfr → zatrzymuje mikrofon → mówi głośno potwierdzenie → od razu kontynuuje nasłuchiwanie
+        <strong>Na iPhonie (Safari):</strong><br>
+        • Mikrofon zatrzymuje się na 1.5s podczas mówienia grupy<br>
+        • Potwierdzenie głosowe od razu po każdej grupie 4 cyfr<br>
+        • Żadnej lawiny na końcu!
     </div>
 
     <script>
-        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        const tbody = document.getElementById('rows');
+        const statusEl = document.getElementById('status');
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert('Użyj Safari na iPhonie!');
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
         recognition.lang = 'pl-PL';
-        recognition.continuous = false;  // KLUCZOWE – będziemy ręcznie wznawiać
+        recognition.continuous = true;
         recognition.interimResults = true;
 
         let buffer = '';
-        let isPausedForSpeaking = false;
+        let isPausedForSpeak = false;
 
-        const digitToPolish = {0:'zero',1:'jeden',2:'dwa',3:'trzy',4:'cztery',5:'pięć',6:'sześć',7:'siedem',8:'osiem',9:'dziewięć'};
+        const digitToPolish = {'0':'zero','1':'jeden','2':'dwa','3':'trzy','4':'cztery','5':'pięć','6':'sześć','7':'siedem','8':'osiem','9':'dziewięć'};
 
-        function speakAndContinue(group) {
-            isPausedForSpeaking = true;
-            document.getElementById('status').textContent = `Potwierdzam: ${group}`;
-            document.getElementById('status').style.color = '#27ae60';
-
+        function speakGroup(group) {
             const words = group.split('').map(d => digitToPolish[d]);
             const utter = new SpeechSynthesisUtterance(words.join(' '));
             utter.lang = 'pl-PL';
             utter.rate = 1.8;
-            utter.volume = 1;
-
-            utter.onend = () => {
-                setTimeout(() => {
-                    if (!isPausedForSpeaking) return; // jeśli ręcznie zatrzymane
-                    isPausedForSpeaking = false;
-                    recognition.start(); // wznawiamy nasłuchiwanie natychmiast po mówieniu
-                }, 300); // mały bufor na pewność
-            };
-
+            utter.volume = 1.0;
             speechSynthesis.speak(utter);
         }
 
-        function processGroup() {
-            if (buffer.length >= 4) {
+        function pauseRecognitionAndSpeak(group) {
+            isPausedForSpeak = true;
+            recognition.stop(); // Zatrzymujemy mikrofon
+
+            // Mówimy grupę
+            speakGroup(group);
+
+            // Po 1.5s restartujemy nasłuchiwanie (czas na potwierdzenie)
+            setTimeout(() => {
+                isPausedForSpeak = false;
+                recognition.start();
+            }, 1500); // Dostosuj jeśli potrzeba (1-2s)
+        }
+
+        function addGroup(group) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.textContent = group;
+            row.appendChild(cell);
+            tbody.appendChild(row);
+            row.scrollIntoView({behavior: 'smooth'});
+
+            // Potwierdzamy głosowo z zatrzymaniem mikrofonu
+            pauseRecognitionAndSpeak(group);
+
+            statusEl.textContent = `Dodano: ${group} (potwierdzam...)`;
+            statusEl.style.color = '#27ae60';
+        }
+
+        function processBuffer() {
+            while (buffer.length >= 4) {
                 const group = buffer.substring(0, 4);
                 buffer = buffer.substring(4);
-
-                // dodaj do tabeli
-                const row = document.createElement('tr');
-                const cell = document.createElement('td');
-                cell.textContent = group;
-                row.appendChild(cell);
-                document.getElementById('rows').appendChild(row);
-                row.scrollIntoView({behavior:'smooth'});
-
-                // zatrzymaj nasłuchiwanie i potwierdź głosowo
-                recognition.stop();
-                speakAndContinue(group);
+                addGroup(group);
             }
         }
 
         recognition.onresult = (event) => {
-            let finalText = '';
+            if (isPausedForSpeak) return; // Nie przetwarzamy podczas pauzy
+
+            let hasNew = false;
             for (let i = event.resultIndex; i < event.results.length; i++) {
-                if (event.results[i].isFinal) {
-                    finalText += event.results[i][0].transcript;
+                const digits = event.results[i][0].transcript.trim().replace(/[^0-9]/g, '');
+                if (digits && event.results[i].isFinal) {
+                    buffer += digits;
+                    hasNew = true;
                 }
             }
-            if (finalText) {
-                const digits = finalText.replace(/[^0-9]/g, '');
-                buffer += digits;
-                processGroup();
-            }
+            if (hasNew) processBuffer();
+        };
+
+        recognition.onerror = (event) => {
+            statusEl.textContent = 'Błąd: ' + event.error;
+            statusEl.style.color = '#d63031';
+        };
+
+        recognition.onstart = () => {
+            statusEl.textContent = 'Mów cyfry!';
+            statusEl.style.color = '#27ae60';
         };
 
         recognition.onend = () => {
-            if (!isPausedForSpeaking && buffer.length >= 4) {
-                // jeśli zakończyło się naturalnie (pauza) – też przetwarzamy
-                processGroup();
+            if (!isPausedForSpeak) {
+                statusEl.textContent = 'Zatrzymano – kliknij ponownie';
             }
+            processBuffer(); // Dodaj resztę
         };
 
         document.getElementById('start').onclick = () => {
-            document.getElementById('rows').innerHTML = '';
-            buffer = '';
-            isPausedForSpeaking = false;
-            document.getElementById('status').textContent = 'Mów cyfry...';
-            document.getElementById('status').style.color = '#27ae60';
+            // Prime dźwięku na iOS
+            speechSynthesis.speak(new SpeechSynthesisUtterance(''));
             recognition.start();
         };
 
         document.getElementById('stop').onclick = () => {
             recognition.stop();
-            isPausedForSpeaking = false;
-            document.getElementById('status').textContent = 'Zatrzymano';
-            document.getElementById('status').style.color = '#e74c3c';
         };
     </script>
 </body>
-</html>Aaaaa
+</html>
