@@ -2,43 +2,29 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Cyfry po 4 – idealna na iPhone</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyfry po 4 – najlepsza na iPhone</title>
     <style>
-        body { font-family: -apple-system, Arial, sans-serif; text-align: center; margin: 0; padding: 20px; background: #f4f6f9; touch-action: manipulation; }
-        h1 { font-size: 28px; color: #2c3e50; margin: 20px 0; }
-        #tabela { width: 100%; max-width: 600px; margin: 30px auto; border-collapse: collapse; background: white; box-shadow: 0 6px 20px rgba(0,0,0,0.15); border-radius: 16px; overflow: hidden; }
-        #tabela th { background: #3498db; color: white; padding: 20px; font-size: 26px; }
-        #tabela td { padding: 25px; font-size: 64px; font-weight: bold; letter-spacing: 12px; text-align: center; border-bottom: 2px solid #eee; }
-        button { width: 90%; max-width: 500px; padding: 20px; font-size: 28px; margin: 15px auto; cursor: pointer; border: none; border-radius: 16px; color: white; font-weight: bold; display: block; }
+        /* Ten sam styl co wcześniej – duży, wygodny na telefonie */
+        body { font-family: -apple-system, Arial, sans-serif; text-align: center; margin: 0; padding: 20px; background: #f4f6f9; }
+        h1 { font-size: 28px; color: #2c3e50; }
+        button { width: 90%; padding: 20px; font-size: 28px; margin: 15px; border-radius: 16px; color: white; }
         #start { background: #27ae60; }
         #stop { background: #e74c3c; }
-        #status { font-size: 26px; margin: 30px; font-weight: bold; min-height: 70px; padding: 20px; background: #fff; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .info { font-size: 20px; margin: 30px auto; padding: 20px; background: #fff3cd; border-radius: 12px; max-width: 600px; border: 1px solid #ffeaa7; }
+        #status { font-size: 26px; margin: 30px; font-weight: bold; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        #tabela td { font-size: 64px; letter-spacing: 12px; padding: 25px; }
+        .info { font-size: 20px; padding: 20px; background: #fff3cd; border-radius: 12px; margin: 30px; }
     </style>
 </head>
 <body>
     <h1>Grupy po 4 cyfry</h1>
-
-    <button id="start">▶ Rozpocznij nasłuchiwanie</button>
+    <button id="start">▶ Rozpocznij</button>
     <button id="stop">■ Zatrzymaj</button>
-    
-    <div id="status">Dotknij „Rozpocznij” i mów cyfry</div>
-    
-    <table id="tabela">
-        <thead>
-            <tr>
-                <th>Grupy cyfr</th>
-            </tr>
-        </thead>
-        <tbody id="rows"></tbody>
-    </table>
-
+    <div id="status">Dotknij Rozpocznij i mów</div>
+    <table id="tabela"><thead><tr><th>Grupy</th></tr></thead><tbody id="rows"></tbody></table>
     <div class="info">
-        <strong>Teraz na iPhonie (Safari):</strong><br>
-        • Grupy pojawiają się od razu<br>
-        • Każda grupa powtarzana na głos prawie natychmiast<br>
-        • Brak lawiny po zatrzymaniu
+        <strong>Na iPhonie tylko Safari!</strong><br>
+        Potwierdzenie głosowe będzie z małym opóźnieniem, ale bez lawiny na końcu.
     </div>
 
     <script>
@@ -47,8 +33,8 @@
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            alert('Użyj Safari na iPhonie!');
-            throw new Error('No SpeechRecognition');
+            alert('Użyj Safari!');
+            throw new Error('No support');
         }
 
         const recognition = new SpeechRecognition();
@@ -57,110 +43,77 @@
         recognition.interimResults = true;
 
         let buffer = '';
-        let pendingSpeak = []; // grupy czekające na odczytanie
+        let speakQueue = [];
+        let isSpeaking = false;
 
-        const digitToPolish = {
-            '0': 'zero', '1': 'jeden', '2': 'dwa', '3': 'trzy', '4': 'cztery',
-            '5': 'pięć', '6': 'sześć', '7': 'siedem', '8': 'osiem', '9': 'dziewięć'
-        };
+        const digitToPolish = {'0':'zero','1':'jeden','2':'dwa','3':'trzy','4':'cztery','5':'pięć','6':'sześć','7':'siedem','8':'osiem','9':'dziewięć'};
 
-        function speakGroup(group) {
+        function speakNext() {
+            if (isSpeaking || speakQueue.length === 0) return;
+            isSpeaking = true;
+            const group = speakQueue.shift();
             const words = group.split('').map(d => digitToPolish[d]);
-            const text = words.join(' ');
-            const utter = new SpeechSynthesisUtterance(text);
+            const utter = new SpeechSynthesisUtterance(words.join(' '));
             utter.lang = 'pl-PL';
             utter.rate = 1.8;
-            utter.volume = 1.0;
+            utter.onend = () => { isSpeaking = false; speakNext(); };
+            utter.onerror = () => { isSpeaking = false; speakNext(); };
             speechSynthesis.speak(utter);
         }
 
-        function processPendingSpeak() {
-            if (pendingSpeak.length > 0) {
-                const group = pendingSpeak.shift();
-                speakGroup(group);
-                // Planujemy kolejne z małym opóźnieniem
-                setTimeout(processPendingSpeak, 600); // co ~0.6s na grupę – płynnie
-            }
-        }
-
-        function addGroup(group) {
+        function addAndSpeak(group) {
             const row = document.createElement('tr');
             const cell = document.createElement('td');
             cell.textContent = group;
             row.appendChild(cell);
             tbody.appendChild(row);
-            row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            row.scrollIntoView({behavior:'smooth'});
 
-            statusEl.textContent = `Dodano: ${group}`;
-            statusEl.style.color = '#27ae60';
-
-            // Dodaj do kolejki odczytu z małym opóźnieniem
-            pendingSpeak.push(group);
-            if (pendingSpeak.length === 1) {
-                setTimeout(processPendingSpeak, 300); // pierwsze z lekkim opóźnieniem
-            }
+            speakQueue.push(group);
+            speakNext(); // spróbuj od razu, a jak nie – kolejne opóźnienie
+            setTimeout(speakNext, 800); // dodatkowe pchnięcie co 800ms
         }
 
         function processBuffer() {
             while (buffer.length >= 4) {
-                const group = buffer.substring(0, 4);
+                const group = buffer.substring(0,4);
                 buffer = buffer.substring(4);
-                addGroup(group);
+                addAndSpeak(group);
+                statusEl.textContent = `Dodano i potwierdzam: ${group}`;
             }
         }
 
         recognition.onresult = (event) => {
-            let hasNewDigits = false;
-
             for (let i = event.resultIndex; i < event.results.length; i++) {
-                const transcript = event.results[i][0].transcript;
-                const digits = transcript.trim().replace(/[^0-9]/g, '');
-                if (digits) {
-                    if (event.results[i].isFinal) {
-                        buffer += digits;
-                        hasNewDigits = true;
-                    }
+                const digits = event.results[i][0].transcript.trim().replace(/[^0-9]/g, '');
+                if (digits && event.results[i].isFinal) {
+                    buffer += digits;
+                    processBuffer();
                 }
             }
-
-            if (hasNewDigits && buffer.length >= 4) {
-                processBuffer();
-            }
-        };
-
-        recognition.onerror = (event) => {
-            console.error('Błąd:', event.error);
-            statusEl.textContent = 'Błąd: ' + event.error;
-            statusEl.style.color = '#d63031';
         };
 
         recognition.onstart = () => {
             buffer = '';
-            pendingSpeak = [];
+            speakQueue = [];
+            isSpeaking = false;
             tbody.innerHTML = '';
-            statusEl.textContent = 'Mów cyfry – działam!';
-            statusEl.style.color = '#27ae60';
+            statusEl.textContent = 'Mów cyfry!';
         };
 
         recognition.onend = () => {
-            processBuffer(); // dodaj ewentualne pozostałe grupy
-            processPendingSpeak(); // dokończ odczytywanie
-            statusEl.textContent = 'Zatrzymano. Kliknij Rozpocznij ponownie.';
-            statusEl.style.color = '#7f8c8d';
+            processBuffer();
+            setTimeout(speakNext, 300); // dokończ kolejkę
+            statusEl.textContent = 'Zatrzymano – kliknij ponownie';
         };
 
         document.getElementById('start').onclick = () => {
-            // Odblokowanie dźwięku
-            const silent = new SpeechSynthesisUtterance('');
-            silent.volume = 0;
-            speechSynthesis.speak(silent);
-
+            // Prime dźwięku na iOS
+            speechSynthesis.speak(new SpeechSynthesisUtterance(''));
             recognition.start();
         };
 
-        document.getElementById('stop').onclick = () => {
-            recognition.stop();
-        };
+        document.getElementById('stop').onclick = () => recognition.stop();
     </script>
 </body>
-</html>llllllllllllllllllll
+</html>kkkkkkkkkkkkkkkkkkkkkkkk
