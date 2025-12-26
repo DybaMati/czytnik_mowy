@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nasłuchiwanie cyfr v004</title>
+<title>Nasłuchiwanie cyfr v005</title>
 <style>
 body {
     font-family: Arial, sans-serif;
@@ -55,13 +55,13 @@ th { background: #e9ecef; }
 <h2>Nasłuchiwanie cyfr po 2</h2>
 <button id="toggle">🎙 START</button>
 <button id="unlock" style="display:none;">⛔ STOP</button>
-<p id="info">Kliknij START i mów pary cyfr (np. „dwadzieścia cztery trzydzieści siedem”)</p>
+<p id="info">START → mów pary cyfr (np. „dwadzieścia cztery trzydzieści siedem”)</p>
 
 <table id="table">
     <tr><th>#</th><th>Numer</th></tr>
 </table>
 
-<div id="version">004 | 2025-12-26</div>
+<div id="version">005 | 2025-12-26</div>
 
 <script>
 let counter = 1;
@@ -82,8 +82,9 @@ if (!SpeechRecognition) {
     recognition.lang = "pl-PL";
     recognition.interimResults = false;
 
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    recognition.continuous = !isMobile;
+    // NA IOS ZAWSZE continuous = false !!!
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    recognition.continuous = !isIOS; // tylko na Androidzie i desktopie ciągłe
 
     toggleBtn.onclick = () => {
         if (!listening) {
@@ -114,7 +115,6 @@ if (!SpeechRecognition) {
             return;
         }
 
-        // ostatnie 4 cyfry
         const number = digitsOnly.slice(-4);
 
         const row = table.insertRow();
@@ -125,13 +125,13 @@ if (!SpeechRecognition) {
 
         info.textContent = "OK: " + number + " – słucham…";
 
-        // SZYBKA synteza mowy
+        // BARDZO SZYBKA synteza mowy
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(number.split('').join(' '));
             utterance.lang = "pl-PL";
-            utterance.rate = 1.4;        // znacznie szybciej
-            utterance.pitch = 1.1;
+            utterance.rate = 1.8;     // jeszcze szybciej
+            utterance.pitch = 1.05;   // lekko wyżej, brzmi naturalniej
             utterance.volume = 1.0;
             window.speechSynthesis.speak(utterance);
         }
@@ -148,7 +148,6 @@ if (!SpeechRecognition) {
 
     recognition.onerror = (e) => {
         console.log("Błąd:", e.error);
-        // nie pokazujemy błędów "no-speech" i "aborted" na ekranie
         if (e.error !== "no-speech" && e.error !== "aborted") {
             info.textContent = "Błąd: " + e.error;
         }
@@ -156,12 +155,13 @@ if (!SpeechRecognition) {
 
     recognition.onend = () => {
         if (listening) {
+            // Na iOS restartujemy natychmiast po zakończeniu
             setTimeout(() => {
                 if (listening) recognition.start();
-            }, 20); // bardzo szybki restart
+            }, isIOS ? 100 : 20); // na iOS dajemy 100 ms, żeby nie było za szybko i nie blokowało
         }
     };
 }
 </script>
 </body>
-</html>
+</html>55555555555555555555
