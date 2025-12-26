@@ -46,9 +46,8 @@ if(!SpeechRecognition){
     recognition.lang="pl-PL";
     recognition.interimResults=false;
 
-    // Desktop = continuous, Mobilnie = false
     const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    recognition.continuous=!isMobile;
+    recognition.continuous=!isMobile; // desktop: continuous, mobilnie: false
 
     async function enableWakeLock(){
         try{ wakeLock=await navigator.wakeLock.request("screen"); }
@@ -64,7 +63,7 @@ if(!SpeechRecognition){
             unlockBtn.style.display="inline-block";
             lockDiv.style.display="block";
             await enableWakeLock();
-            info.textContent="Nagrywanie… powiedz cyfry po dwie (np. '11 23')";
+            info.textContent="Nagrywanie… powiedz cyfry po dwie (np. '59 12')";
         }
     };
 
@@ -80,6 +79,7 @@ if(!SpeechRecognition){
 
     function addDigits(digits){
         if(digits.length===0){ info.textContent="Nie rozpoznano cyfr, powtórz nagranie"; return; }
+
         let combined = digits.join('');
         while(combined.length < 4) combined += "-";
 
@@ -90,13 +90,12 @@ if(!SpeechRecognition){
         setTimeout(()=>row.classList.remove("new-row"),1000);
         info.textContent="Dodano numer: "+combined;
 
-        // feedback głosowy z krótkim delay (działa na iOS)
-        setTimeout(()=>{
-            if('speechSynthesis' in window){
-                let speakStr = digits.join(' ');
-                window.speechSynthesis.speak(new SpeechSynthesisUtterance(speakStr));
-            }
-        },200);
+        // szybki feedback głosowy
+        if('speechSynthesis' in window){
+            window.speechSynthesis.cancel();
+            let speakStr = digits.join(' ');
+            window.speechSynthesis.speak(new SpeechSynthesisUtterance(speakStr));
+        }
     }
 
     recognition.onresult=(event)=>{
@@ -114,7 +113,7 @@ if(!SpeechRecognition){
 
     recognition.onend=()=>{
         if(listening){
-            setTimeout(()=>recognition.start(), isMobile?300:0);
+            setTimeout(()=>recognition.start(), isMobile?100:0); // restart po krótkim delay
         }
     };
 }
@@ -122,4 +121,3 @@ if(!SpeechRecognition){
 
 </body>
 </html>
-`````
