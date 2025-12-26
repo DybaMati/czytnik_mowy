@@ -2,66 +2,63 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rozpoznawanie cyfr – wersja na iPhone</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Cyfry po 4 – wersja iPhone</title>
     <style>
-        body { font-family: -apple-system, Arial, sans-serif; text-align: center; margin-top: 50px; background: #f4f6f9; -webkit-user-select: none; }
-        h1 { color: #2c3e50; }
-        #tabela { width: 90%; max-width: 800px; margin: 30px auto; border-collapse: collapse; background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 12px; overflow: hidden; }
-        #tabela th { background: #3498db; color: white; padding: 20px; font-size: 24px; }
-        #tabela td { padding: 20px; font-size: 56px; font-weight: bold; letter-spacing: 8px; text-align: center; border-bottom: 1px solid #eee; }
-        button { padding: 18px 36px; font-size: 22px; margin: 20px; cursor: pointer; border: none; border-radius: 12px; color: white; font-weight: bold; }
+        body { font-family: -apple-system, Arial, sans-serif; text-align: center; margin: 0; padding: 20px; background: #f4f6f9; touch-action: manipulation; }
+        h1 { font-size: 28px; color: #2c3e50; margin: 20px 0; }
+        #tabela { width: 100%; max-width: 600px; margin: 30px auto; border-collapse: collapse; background: white; box-shadow: 0 6px 20px rgba(0,0,0,0.15); border-radius: 16px; overflow: hidden; }
+        #tabela th { background: #3498db; color: white; padding: 20px; font-size: 26px; }
+        #tabela td { padding: 25px; font-size: 64px; font-weight: bold; letter-spacing: 12px; text-align: center; border-bottom: 2px solid #eee; }
+        button { width: 90%; max-width: 500px; padding: 20px; font-size: 28px; margin: 15px auto; cursor: pointer; border: none; border-radius: 16px; color: white; font-weight: bold; display: block; }
         #start { background: #27ae60; }
-        #start:hover { background: #219a52; }
         #stop { background: #e74c3c; }
-        #stop:hover { background: #c0392b; }
-        #status { font-size: 24px; margin: 30px; font-weight: bold; min-height: 60px; }
-        .info { max-width: 800px; margin: 20px auto; padding: 20px; background: #fff3cd; border-radius: 12px; text-align: left; font-size: 18px; border: 1px solid #ffeaa7; }
-        .warning { color: #d63031; font-weight: bold; }
+        #status { font-size: 26px; margin: 30px; font-weight: bold; min-height: 70px; padding: 20px; background: #fff; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .info { font-size: 20px; margin: 30px auto; padding: 20px; background: #fff3cd; border-radius: 12px; max-width: 600px; border: 1px solid #ffeaa7; }
     </style>
 </head>
 <body>
-    <h1>Rozpoznawanie grup cyfr</h1>
-    <p>Mów grupy cyfr z krótkimi przerwami (np. „pięćdziesiąt dziewięć czterdzieści dwa”).</p>
+    <h1>Grupy po 4 cyfry</h1>
 
-    <button id="start">Rozpocznij nasłuchiwanie</button>
-    <button id="stop">Zatrzymaj</button>
+    <button id="start">▶ Rozpocznij nasłuchiwanie</button>
+    <button id="stop">■ Zatrzymaj</button>
     
-    <div id="status">Status: Gotowy</div>
+    <div id="status">Dotknij „Rozpocznij” i mów cyfry</div>
     
     <table id="tabela">
         <thead>
             <tr>
-                <th>Zapisane grupy cyfr</th>
+                <th>Grupy cyfr</th>
             </tr>
         </thead>
         <tbody id="rows"></tbody>
     </table>
 
     <div class="info">
-        <strong>Na iPhonie:</strong><br>
-        • Używaj <strong>Safari</strong> – tam działa najlepiej (rozpoznawanie + głośne powtarzanie).<br>
-        • W Chrome na iOS rozpoznawanie mowy niestety nie działa.<br><br>
-        <span class="warning">Po kliknięciu „Rozpocznij” – zezwól na mikrofon i dotknij ekranu, jeśli nie słyszysz głosu.</span>
+        <strong>Na iPhonie (Safari):</strong><br>
+        • Mów cyfry szybko lub powoli – skrypt sam dzieli co 4 cyfry<br>
+        • Każda grupa pojawia się od razu + jest powtarzana na głos<br>
+        • Nie czekaj na długą pauzę – działa płynnie!
     </div>
 
     <script>
         const tbody = document.getElementById('rows');
         const statusEl = document.getElementById('status');
 
-        // Sprawdź wsparcie dla rozpoznawania mowy
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            statusEl.textContent = 'Twoja przeglądarka nie wspiera rozpoznawania mowy!';
+            alert('Rozpoznawanie mowy nie jest wspierane w tej przeglądarce. Użyj Safari!');
+            statusEl.textContent = 'Użyj Safari na iPhonie';
             statusEl.style.color = '#d63031';
-            document.getElementById('start').disabled = true;
-            alert('Użyj Safari na iPhonie – tam działa rozpoznawanie mowy!');
+            throw new Error('No SpeechRecognition');
         }
 
         const recognition = new SpeechRecognition();
         recognition.lang = 'pl-PL';
         recognition.continuous = true;
-        recognition.interimResults = true;
+        recognition.interimResults = true;  // KLUCZOWE dla iPhone – bieżące wyniki
+
+        let buffer = ''; // wszystkie zebrane cyfry w sesji
 
         const digitToPolish = {
             '0': 'zero', '1': 'jeden', '2': 'dwa', '3': 'trzy', '4': 'cztery',
@@ -69,71 +66,92 @@
         };
 
         function speakGroup(group) {
-            if (!group) return;
-            const words = group.split('').map(d => digitToPolish[d]);
+            const words = group.split('').map(d => digitToPolish[d] || '');
             const text = words.join(' ');
             const utter = new SpeechSynthesisUtterance(text);
             utter.lang = 'pl-PL';
             utter.rate = 1.8;
-
-            // Pomoc na iOS – próbujemy odblokować audio
-            utter.onstart = () => console.log('Mówię:', text);
-            utter.onerror = (e) => console.error('Błąd mowy:', e);
-
+            utter.volume = 1.0;
             speechSynthesis.speak(utter);
         }
 
-        function extractDigits(transcript) {
-            return transcript.trim().replace(/[^0-9]/g, '');
-        }
+        function processBuffer() {
+            while (buffer.length >= 4) {
+                const group = buffer.substring(0, 4);
+                buffer = buffer.substring(4);
 
-        recognition.onresult = (event) => {
-            let finalGroup = '';
-
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                const digits = extractDigits(event.results[i][0].transcript);
-                if (event.results[i].isFinal && digits) {
-                    finalGroup = digits;
-                }
-            }
-
-            if (finalGroup) {
                 const row = document.createElement('tr');
                 const cell = document.createElement('td');
-                cell.textContent = finalGroup;
+                cell.textContent = group;
                 row.appendChild(cell);
                 tbody.appendChild(row);
 
-                speakGroup(finalGroup);
-                statusEl.textContent = `Dodano: ${finalGroup} (powtórzono na głos)`;
+                speakGroup(group);
+
+                statusEl.textContent = `Dodano: ${group}`;
                 statusEl.style.color = '#27ae60';
+
+                // Lekki scroll do najnowszej grupy
+                row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        recognition.onresult = (event) => {
+            let tempDigits = '';
+
+            // Przetwarzamy wszystkie wyniki (final i interim)
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+                const digits = transcript.trim().replace(/[^0-9]/g, '');
+                if (digits) {
+                    if (event.results[i].isFinal) {
+                        buffer += digits;
+                    } else {
+                        tempDigits += digits;
+                    }
+                }
+            }
+
+            // Zawsze przetwarzamy bufor (nawet z interim)
+            if (buffer.length >= 4) {
+                processBuffer();
+            }
+
+            // Opcjonalnie: pokaz tymczasowe w statusie
+            if (tempDigits && buffer.length < 4) {
+                statusEl.textContent = `Słyszę: ...${tempDigits.slice(-4)}`;
             }
         };
 
         recognition.onerror = (event) => {
-            console.error('Błąd rozpoznawania:', event.error);
+            console.error('Błąd:', event.error);
             if (event.error === 'not-allowed') {
                 statusEl.textContent = 'Brak dostępu do mikrofonu!';
-                statusEl.style.color = '#d63031';
+            } else {
+                statusEl.textContent = 'Błąd: ' + event.error;
             }
+            statusEl.style.color = '#d63031';
         };
 
         recognition.onstart = () => {
-            statusEl.textContent = 'Nasłuchiwanie aktywne – mów grupy cyfr!';
+            buffer = '';
+            tbody.innerHTML = '';
+            statusEl.textContent = 'Mów cyfry – działam!';
             statusEl.style.color = '#27ae60';
         };
 
         recognition.onend = () => {
-            statusEl.textContent = 'Nasłuchiwanie zatrzymane';
+            processBuffer(); // na koniec sesji dodaj resztę (jeśli >=4)
+            statusEl.textContent = 'Zatrzymano. Kliknij Rozpocznij ponownie.';
             statusEl.style.color = '#7f8c8d';
         };
 
         document.getElementById('start').onclick = () => {
-            tbody.innerHTML = '';
-            statusEl.textContent = 'Przygotowuję...';
-            // Mały trik na iOS – odblokowanie audio po dotknięciu
-            const utter = new SpeechSynthesisUtterance('');
-            speechSynthesis.speak(utter);
+            // Odblokowanie dźwięku na iOS
+            const silent = new SpeechSynthesisUtterance('');
+            silent.volume = 0;
+            speechSynthesis.speak(silent);
+
             recognition.start();
         };
 
@@ -142,4 +160,4 @@
         };
     </script>
 </body>
-</html>44444444444444444444444444444444444444444ggg
+</html>gggggggggggggggggggggggggggggggggggggg
