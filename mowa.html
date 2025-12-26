@@ -3,20 +3,51 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nasłuchiwanie cyfr wersja 003</title>
+<title>Nasłuchiwanie cyfr v004</title>
 <style>
-body { font-family: Arial, sans-serif; padding: 20px; background: #f8f9fa; }
-button { font-size: 18px; padding: 12px 24px; margin: 10px 10px 0 0; cursor: pointer; border: none; border-radius: 6px; }
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    background: #f8f9fa;
+    margin: 0;
+}
+h2 { margin-top: 0; }
+button {
+    font-size: 20px;
+    padding: 14px 30px;
+    margin: 10px 10px 0 0;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
 #toggle { background: #28a745; color: white; }
 #unlock { background: #dc3545; color: white; }
-table { border-collapse: collapse; margin-top: 20px; width: 100%; max-width: 500px; }
-th, td { border: 1px solid #ccc; padding: 12px; font-size: 24px; text-align: center; }
+table {
+    border-collapse: collapse;
+    margin-top: 20px;
+    width: 100%;
+    max-width: 400px;
+}
+th, td {
+    border: 1px solid #ccc;
+    padding: 12px;
+    font-size: 26px;
+    text-align: center;
+}
 th { background: #e9ecef; }
-.new-row { background: #d4edda; transition: background 1.2s; }
-#lock { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; touch-action: none; }
-#lock span { color: #fff; font-size: 24px; position: absolute; bottom: 40px; width: 100%; text-align: center; }
-#info { font-size: 18px; margin-top: 15px; color: #333; }
-#version { position: fixed; bottom: 10px; right: 15px; font-size: 16px; color: #666; font-weight: bold; }
+.new-row { background: #d4edda; transition: background 1s; }
+#info {
+    font-size: 18px;
+    margin: 15px 0;
+    color: #333;
+}
+#version {
+    position: fixed;
+    bottom: 10px;
+    right: 15px;
+    font-size: 14px;
+    color: #777;
+}
 </style>
 </head>
 <body>
@@ -24,34 +55,23 @@ th { background: #e9ecef; }
 <h2>Nasłuchiwanie cyfr po 2</h2>
 <button id="toggle">🎙 START</button>
 <button id="unlock" style="display:none;">⛔ STOP</button>
-<p id="info">Kliknij START i mów pary cyfr (np. „24 56”, „13 12”).</p>
-
-<div id="lock"><span>Ekran zablokowany – nagrywanie aktywne</span></div>
+<p id="info">Kliknij START i mów pary cyfr (np. „dwadzieścia cztery trzydzieści siedem”)</p>
 
 <table id="table">
     <tr><th>#</th><th>Numer</th></tr>
 </table>
 
-<div id="version">003 | 2025-12-26</div>
+<div id="version">004 | 2025-12-26</div>
 
 <script>
 let counter = 1;
 let listening = false;
-let wakeLock = null;
 let lastTranscript = "";
-let versionCounter = 3;
 
 const table = document.getElementById("table");
 const toggleBtn = document.getElementById("toggle");
 const unlockBtn = document.getElementById("unlock");
-const lockDiv = document.getElementById("lock");
 const info = document.getElementById("info");
-const versionDiv = document.getElementById("version");
-
-function updateVersionDisplay() {
-    const now = new Date();
-    versionDiv.textContent = `${versionCounter.toString().padStart(3,'0')} | ${now.toLocaleString('pl-PL', {dateStyle: 'short', timeStyle: 'medium'})}`;
-}
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -65,25 +85,14 @@ if (!SpeechRecognition) {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     recognition.continuous = !isMobile;
 
-    async function enableWakeLock() {
-        try { wakeLock = await navigator.wakeLock.request("screen"); }
-        catch (e) { console.log("WakeLock error:", e); }
-    }
-
-    function disableWakeLock() {
-        if (wakeLock) wakeLock.release().catch(() => {});
-    }
-
-    toggleBtn.onclick = async () => {
+    toggleBtn.onclick = () => {
         if (!listening) {
             try {
                 recognition.start();
                 listening = true;
                 toggleBtn.style.display = "none";
                 unlockBtn.style.display = "inline-block";
-                lockDiv.style.display = "block";
-                await enableWakeLock();
-                info.textContent = "Nagrywanie… mów pary cyfr.";
+                info.textContent = "Słucham… mów pary cyfr";
             } catch (e) {
                 info.textContent = "Błąd startu: " + e.message;
             }
@@ -95,47 +104,42 @@ if (!SpeechRecognition) {
         listening = false;
         toggleBtn.style.display = "inline-block";
         unlockBtn.style.display = "none";
-        lockDiv.style.display = "none";
-        disableWakeLock();
         info.textContent = "Zatrzymano.";
     };
 
     function addDigits(text) {
-        const allDigits = text.replace(/\D/g, '');
-        if (allDigits.length < 2) {
-            info.textContent = "Za mało cyfr – spróbuj jeszcze raz";
+        const digitsOnly = text.replace(/\D/g, '');
+        if (digitsOnly.length < 2) {
+            info.textContent = "Za mało cyfr – mów dalej";
             return;
         }
 
-        // Bierzemy ostatnie 4 cyfry
-        let combined = allDigits.slice(-4);
+        // ostatnie 4 cyfry
+        const number = digitsOnly.slice(-4);
 
         const row = table.insertRow();
         row.insertCell().textContent = counter++;
-        row.insertCell().textContent = combined;
+        row.insertCell().textContent = number;
         row.classList.add("new-row");
-        setTimeout(() => row.classList.remove("new-row"), 1200);
+        setTimeout(() => row.classList.remove("new-row"), 1000);
 
-        info.textContent = "Dodano: " + combined + " – słucham dalej…";
+        info.textContent = "OK: " + number + " – słucham…";
 
-        versionCounter++;
-        updateVersionDisplay();
-
-        // SZYBSZA synteza mowy
+        // SZYBKA synteza mowy
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(combined.split('').join(' '));
+            const utterance = new SpeechSynthesisUtterance(number.split('').join(' '));
             utterance.lang = "pl-PL";
-            utterance.rate = 1.25;         // szybciej
-            utterance.pitch = 1.1;         // lekko wyżej
-            utterance.volume = 0.9;
+            utterance.rate = 1.4;        // znacznie szybciej
+            utterance.pitch = 1.1;
+            utterance.volume = 1.0;
             window.speechSynthesis.speak(utterance);
         }
     }
 
     recognition.onresult = (event) => {
         const text = event.results[0][0].transcript.trim();
-        if (text === lastTranscript) return; // unikamy powtórzeń
+        if (text === lastTranscript) return;
         lastTranscript = text;
 
         console.log("Rozpoznano:", text);
@@ -144,6 +148,7 @@ if (!SpeechRecognition) {
 
     recognition.onerror = (e) => {
         console.log("Błąd:", e.error);
+        // nie pokazujemy błędów "no-speech" i "aborted" na ekranie
         if (e.error !== "no-speech" && e.error !== "aborted") {
             info.textContent = "Błąd: " + e.error;
         }
@@ -153,10 +158,10 @@ if (!SpeechRecognition) {
         if (listening) {
             setTimeout(() => {
                 if (listening) recognition.start();
-            }, 30); // bardzo szybki restart
+            }, 20); // bardzo szybki restart
         }
     };
 }
 </script>
 </body>
-</html>1111111111111111111111111111111111
+</html>
