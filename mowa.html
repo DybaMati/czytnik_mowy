@@ -4,61 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Nasluchiwanie cyfr</title>
-09999999999999
+
 <style>
-body {
-  font-family: Arial;
-  padding: 20px;
-  user-select: none;
-}
-
-button {
-  font-size: 18px;
-  padding: 12px 20px;
-  margin-top: 10px;
-  z-index: 1001;
-  position: relative;
-}
-
-table {
-  border-collapse: collapse;
-  margin-top: 20px;
-  width: 100%;
-}
-
-th, td {
-  border: 1px solid #000;
-  padding: 10px;
-  font-size: 22px;
-  text-align: center;
-}
-
-/* BLOKADA EKRANU */
-#lock {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.6);
-  z-index: 1000;
-  touch-action: none;
-}
-#lock span {
-  color: #fff;
-  font-size: 20px;
-  position: absolute;
-  bottom: 30px;
-  width: 100%;
-  text-align: center;
-}
+body { font-family: Arial; padding: 20px; }
+button { font-size: 18px; padding: 12px 20px; margin-top: 10px; z-index:1001; position:relative; }
+table { border-collapse: collapse; margin-top: 20px; width: 100%; }
+th, td { border: 1px solid #000; padding: 10px; font-size: 22px; text-align: center; }
+#lock { display:none; position: fixed; inset:0; background: rgba(0,0,0,0.6); z-index:1000; touch-action:none; }
+#lock span { color:#fff; font-size:20px; position:absolute; bottom:30px; width:100%; text-align:center; }
+#info { font-size: 18px; margin-top:10px; color: #222; }
 </style>
 </head>
-
 <body>
 
 <h2>Nasluchiwanie cyfr</h2>
-
 <button id="toggle">🎙 START</button>
 <button id="unlock" style="display:none;">⛔ STOP</button>
+<p id="info">Kliknij przycisk, aby rozpocząć nasłuchiwanie.</p>
 
 <div id="lock">
   <span>Ekran zablokowany – nagrywanie aktywne</span>
@@ -77,6 +39,7 @@ const table = document.getElementById("table");
 const toggleBtn = document.getElementById("toggle");
 const unlockBtn = document.getElementById("unlock");
 const lockDiv = document.getElementById("lock");
+const info = document.getElementById("info");
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = new SpeechRecognition();
@@ -87,20 +50,12 @@ recognition.interimResults = false;
 
 /* WAKE LOCK */
 async function enableWakeLock(){
-  try {
-    wakeLock = await navigator.wakeLock.request("screen");
-    console.log("Wake Lock AKTYWNY");
-  } catch(e){
-    console.log("Wake Lock error:", e);
-  }
+  try { wakeLock = await navigator.wakeLock.request("screen"); console.log("Wake Lock AKTYWNY"); }
+  catch(e){ console.log("Wake Lock error:", e); }
 }
 
 function disableWakeLock(){
-  if(wakeLock){
-    wakeLock.release();
-    wakeLock = null;
-    console.log("Wake Lock OFF");
-  }
+  if(wakeLock){ wakeLock.release(); wakeLock=null; console.log("Wake Lock OFF"); }
 }
 
 /* START / STOP */
@@ -123,31 +78,41 @@ unlockBtn.onclick = () => {
   unlockBtn.style.display = "none";
   lockDiv.style.display = "none";
   disableWakeLock();
+  info.textContent = "Nasłuchiwanie zatrzymane.";
   console.log("Nasluchiwanie STOP");
 };
 
+/* ROZPOZNAWANIE I DOPISYWANIE */
 recognition.onresult = (event) => {
   const text = event.results[event.resultIndex][0].transcript;
   console.log("Rozpoznano:", text);
 
-  const digits = text.replace(/\D/g, '').split('');
+  // wyciągamy wszystkie cyfry
+  const digits = text.replace(/\D/g,'').split('');
+  console.log("Wyciągnięte cyfry:", digits);
 
+  if(digits.length === 0){
+    info.textContent = "Brak cyfr – powtórz nagranie!";
+    return;
+  }
+
+  // dodajemy wiersze po 4 cyfry
   for(let i=0;i<digits.length;i+=4){
     const chunk = digits.slice(i,i+4);
-    while(chunk.length < 4) chunk.push("-");
+    while(chunk.length<4) chunk.push("-");
     const row = table.insertRow();
     row.insertCell().textContent = counter++;
     row.insertCell().textContent = chunk.join("");
+    console.log("Dodano wiersz:", chunk.join(""));
+    info.textContent = "Zapisano numer: " + chunk.join("");
   }
 };
 
-recognition.onend = () => {
-  if(listening){
-    recognition.start();
-  }
-};
+/* błędy i restart */
+recognition.onerror = (e) => { console.log("Błąd rozpoznawania:", e.error); info.textContent="Błąd: "+e.error; };
+recognition.onend = () => { if(listening){ console.log("Restart nasłuchiwania"); recognition.start(); } };
 </script>
 
 </body>
 </html>
-
+7878
