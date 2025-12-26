@@ -3,25 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rozpoznawanie cyfr – finalna wersja</title>
+    <title>Rozpoznawanie cyfr – grupy w wierszach + powtarzanie</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background: #f9f9f9; }
-        h1 { color: #333; }
-        #tabela { width: 90%; max-width: 800px; margin: 30px auto; border-collapse: collapse; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        #tabela th, #tabela td { border: 1px solid #ddd; padding: 20px; font-size: 24px; }
-        #cyfry { font-size: 64px; font-weight: bold; letter-spacing: 8px; color: #2c3e50; }
-        button { padding: 15px 30px; font-size: 20px; margin: 15px; cursor: pointer; border: none; border-radius: 8px; background: #3498db; color: white; }
-        button:hover { background: #2980b9; }
-        button#stop { background: #e74c3c; }
-        button#stop:hover { background: #c0392b; }
-        #status { font-size: 22px; margin: 20px; color: #27ae60; font-weight: bold; }
-        .info { max-width: 800px; margin: 20px auto; padding: 15px; background: #ecf0f1; border-radius: 8px; text-align: left; font-size: 16px; }
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background: #f4f6f9; }
+        h1 { color: #2c3e50; }
+        #tabela { width: 90%; max-width: 800px; margin: 30px auto; border-collapse: collapse; background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        #tabela th { background: #3498db; color: white; padding: 15px; font-size: 24px; }
+        #tabela td { padding: 15px; font-size: 48px; font-weight: bold; letter-spacing: 6px; text-align: center; border-bottom: 1px solid #eee; }
+        button { padding: 15px 30px; font-size: 20px; margin: 15px; cursor: pointer; border: none; border-radius: 8px; color: white; }
+        #start { background: #27ae60; }
+        #start:hover { background: #219a52; }
+        #stop { background: #e74c3c; }
+        #stop:hover { background: #c0392b; }
+        #status { font-size: 22px; margin: 20px; font-weight: bold; }
+        .info { max-width: 800px; margin: 20px auto; padding: 15px; background: #ecf0f1; border-radius: 8px; text-align: left; }
     </style>
 </head>
 <body>
-    <h1>Rozpoznawanie cyfr głosowo</h1>
-    <p>Mów cyfry po dwie lub więcej: „pięć dziewięć”, „cztery dwa”, „pięćdziesiąt dziewięć czterdzieści dwa” itd.</p>
-    <p><strong>Otwórz konsolę (F12 → Console)</strong>, żeby widzieć dokładnie co słyszę i zapisuję.</p>
+    <h1>Rozpoznawanie grup cyfr</h1>
+    <p>Mów grupy cyfr (np. „pięćdziesiąt dziewięć czterdzieści dwa”), zrób krótką przerwę – doda się jako nowy wiersz i zostanie powtórzony na głos.</p>
+    <p><strong>F12 → Console</strong> – zobaczysz pełne logi.</p>
 
     <button id="start">Rozpocznij nasłuchiwanie</button>
     <button id="stop">Zatrzymaj</button>
@@ -31,153 +32,112 @@
     <table id="tabela">
         <thead>
             <tr>
-                <th>Zapisane cyfry</th>
+                <th>Zapisane grupy cyfr</th>
             </tr>
         </thead>
-        <tbody>
-            <tr>
-                <td id="cyfry">—</td>
-            </tr>
+        <tbody id="rows">
+            <!-- Wiersze będą dodawane tutaj -->
         </tbody>
     </table>
 
     <div class="info">
-        <strong>Wskazówki:</strong><br>
-        • Mów wyraźnie, z krótkimi przerwami między grupami cyfr.<br>
-        • Działa w Chrome, Edge, Opera. W Safari – bardzo ograniczone rozpoznawanie.<br>
-        • Przykłady: „pięć dziewięć cztery dwa” → doda 5942<br>
-        • Lub: „pięćdziesiąt dziewięć czterdzieści dwa” → też doda 5942
+        <strong>Przykład działania:</strong><br>
+        Mówisz: „pięćdziesiąt dziewięć czterdzieści dwa” → przerwa → dodaje wiersz <strong>5942</strong> i mówi na głos: „pięć dziewięć cztery dwa” (szybko, rate 1.8)<br><br>
+        Potem: „dwadzieścia trzy piętnaście” → dodaje <strong>2315</strong> i powtarza tę grupę.
     </div>
 
     <script>
-        // Sprawdź, czy przeglądarka wspiera rozpoznawanie mowy
         if (!('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
-            document.getElementById('status').textContent = 'Twoja przeglądarka nie obsługuje rozpoznawania mowy!';
-            document.getElementById('status').style.color = 'red';
-            document.querySelectorAll('button').forEach(b => b.disabled = true);
+            alert('Twoja przeglądarka nie obsługuje rozpoznawania mowy!');
         }
 
         const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'pl-PL';
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.maxAlternatives = 1;
 
-        let finalDigits = '';
+        const tbody = document.getElementById('rows');
 
-        // Mapowanie polskich słów na cyfry (pełne i potoczne)
-        const wordToDigit = {
-            'zero': '0', 'jeden': '1', 'dwa': '2', 'trzy': '3', 'cztery': '4',
-            'pięć': '5', 'sześć': '6', 'siedem': '7', 'osiem': '8', 'dziewięć': '9',
-            'jedynka': '1', 'dwójka': '2', 'trójka': '3', 'czwórka': '4',
-            'piątka': '5', 'szóstka': '6', 'siódemka': '7', 'ósemka': '8', 'dziewiątka': '9'
+        // Mapa cyfr na polskie słowa do odczytu
+        const digitToPolish = {
+            '0': 'zero', '1': 'jeden', '2': 'dwa', '3': 'trzy', '4': 'cztery',
+            '5': 'pięć', '6': 'sześć', '7': 'siedem', '8': 'osiem', '9': 'dziewięć'
         };
 
-        // Mapowanie dziesiątek (dla "pięćdziesiąt" itp.)
-        const tensWords = {
-            'dziesięć': '10', 'dwadzieścia': '20', 'trzydzieści': '30', 'czterdzieści': '40',
-            'pięćdziesiąt': '50', 'sześćdziesiąt': '60', 'siedemdziesiąt': '70',
-            'osiemdziesiąt': '80', 'dziewięćdziesiąt': '90'
-        };
+        function speakGroup(group) {
+            if (!group) return;
+            const words = [];
+            for (let digit of group) {
+                words.push(digitToPolish[digit]);
+            }
+            const text = words.join(' ');
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = 'pl-PL';
+            utter.rate = 1.8; // szybkie powtarzanie
+            speechSynthesis.speak(utter);
+            console.log('%cODCZYTANO NA GŁOS:', 'color: #e67e22; font-weight: bold;', text);
+        }
 
         function extractDigits(transcript) {
             console.log('%cSurowy tekst:', 'color: #3498db; font-weight: bold;', transcript);
-
-            let cleanText = transcript.toLowerCase().trim();
-            let extracted = '';
-
-            // 1. Próba rozpoznania liczb dwucyfrowych typu "pięćdziesiąt dziewięć"
-            const words = cleanText.split(/\s+/);
-            let i = 0;
-            while (i < words.length) {
-                // Sprawdź, czy to dziesiątka + jedność (np. pięćdziesiąt dziewięć)
-                if (tensWords[words[i]] && i + 1 < words.length && wordToDigit[words[i + 1]]) {
-                    extracted += tensWords[words[i]].charAt(0) + wordToDigit[words[i + 1]];
-                    console.log(`Rozpoznano dwucyfrową: ${words[i]} ${words[i+1]} → ${extracted.slice(-2)}`);
-                    i += 2;
-                    continue;
-                }
-
-                // Sprawdź same dziesiątki (np. "czterdzieści")
-                if (tensWords[words[i]]) {
-                    extracted += tensWords[words[i]];
-                    console.log(`Rozpoznano dziesiątkę: ${words[i]} → ${tensWords[words[i]]}`);
-                    i++;
-                    continue;
-                }
-
-                // Sprawdź pojedyncze cyfry słowem
-                if (wordToDigit[words[i]]) {
-                    extracted += wordToDigit[words[i]];
-                    console.log(`Rozpoznano słowo: ${words[i]} → ${wordToDigit[words[i]]}`);
-                    i++;
-                    continue;
-                }
-
-                i++;
+            const clean = transcript.trim();
+            const onlyDigits = clean.replace(/[^0-9]/g, '');
+            if (onlyDigits) {
+                console.log('%cZnaleziono cyfry bezpośrednio:', 'color: #e67e22;', onlyDigits);
             }
-
-            // 2. Jeśli nic nie znaleziono słowami – weź same cyfry z tekstu (gdy mówi "59 42")
-            if (extracted === '') {
-                const onlyDigits = cleanText.replace(/[^0-9]/g, '');
-                if (onlyDigits) {
-                    extracted = onlyDigits;
-                    console.log('%cZnaleziono cyfry bezpośrednio w tekście:', 'color: #e67e22; font-weight: bold;', onlyDigits);
-                }
-            }
-
-            console.log('%cWyodrębnione cyfry z frazy:', 'color: #27ae60; font-weight: bold;', extracted || '(brak)');
-            return extracted;
+            console.log('%cWyodrębnione cyfry z frazy:', 'color: #27ae60; font-weight: bold;', onlyDigits || '(brak)');
+            return onlyDigits;
         }
 
         recognition.onresult = (event) => {
-            let interim = '';
-            let newFinal = '';
+            let finalGroup = '';
 
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const transcript = event.results[i][0].transcript;
                 const digits = extractDigits(transcript);
 
-                if (event.results[i].isFinal) {
-                    newFinal += digits;
-                } else {
-                    interim += digits;
+                if (event.results[i].isFinal && digits) {
+                    finalGroup = digits;
                 }
             }
 
-            if (newFinal) {
-                finalDigits += newFinal;
-                console.log('%cDODANO DO CIĄGU:', 'color: #9b59b6; font-size: 16px; font-weight: bold;', newFinal);
-                console.log('%cPEŁNY CIĄG TERAZ:', 'color: #9b59b6; font-size: 18px; font-weight: bold;', finalDigits);
-            }
+            // Jeśli mamy nową potwierdzoną grupę
+            if (finalGroup) {
+                // Dodaj nowy wiersz do tabeli
+                const row = document.createElement('tr');
+                const cell = document.createElement('td');
+                cell.textContent = finalGroup;
+                row.appendChild(cell);
+                tbody.appendChild(row);
 
-            const display = finalDigits + interim;
-            document.getElementById('cyfry').textContent = display || '—';
+                console.log('%cDODANO NOWĄ GRUPĘ DO TABELI:', 'color: #9b59b6; font-size: 18px; font-weight: bold;', finalGroup);
+
+                // Powtórz na głos tylko tę nową grupę
+                speakGroup(finalGroup);
+            }
         };
 
         recognition.onerror = (event) => {
-            console.error('Błąd rozpoznawania:', event.error);
+            console.error('Błąd:', event.error);
             document.getElementById('status').textContent = 'Błąd: ' + event.error;
             document.getElementById('status').style.color = 'red';
         };
 
         recognition.onstart = () => {
             console.log('%cNASŁUCHIWANIE ROZPOCZĘTE', 'color: #27ae60; font-size: 18px; font-weight: bold;');
-            document.getElementById('status').textContent = 'Nasłuchiwanie aktywne – mów cyfry!';
+            document.getElementById('status').textContent = 'Nasłuchiwanie aktywne – mów grupy cyfr!';
             document.getElementById('status').style.color = '#27ae60';
         };
 
         recognition.onend = () => {
             console.log('%cNasłuchiwanie zatrzymane', 'color: #e74c3c;');
             document.getElementById('status').textContent = 'Nasłuchiwanie zatrzymane';
-            document.getElementById('status').style.color = '#7f8c8d';
         };
 
         document.getElementById('start').onclick = () => {
-            finalDigits = '';
-            document.getElementById('cyfry').textContent = '—';
+            tbody.innerHTML = ''; // wyczyść tabelę
             console.clear();
-            console.log('%c=== NOWA SESJA – ROZPOCZYNAM NASŁUCHIWANIE ===', 'color: #f1c40f; font-size: 20px; font-weight: bold; background: #2c3e50; padding: 10px;');
+            console.log('%c=== NOWA SESJA ===', 'color: #f1c40f; font-size: 22px; font-weight: bold; background: #2c3e50; padding: 10px;');
             recognition.start();
         };
 
@@ -186,4 +146,4 @@
         };
     </script>
 </body>
-</html>
+</html>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
