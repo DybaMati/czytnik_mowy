@@ -17,7 +17,7 @@ th,td{border:1px solid #000;padding:10px;font-size:22px;text-align:center;}
 </head>
 <body>
 
-<h2>Nasłuchiwanie cyfr uniwersalne</h2>
+<h2>Nasłuchiwanie cyfr po 2</h2>
 <button id="toggle">🎙 START</button>
 <button id="unlock" style="display:none;">⛔ STOP</button>
 <p id="info">Kliknij START, aby rozpocząć nagrywanie i powiedz cyfry po dwie.</p>
@@ -50,8 +50,11 @@ if(!SpeechRecognition){
     const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     recognition.continuous=!isMobile;
 
-    async function enableWakeLock(){try{wakeLock=await navigator.wakeLock.request("screen");}catch(e){console.log("WakeLock error",e);}}
-    function disableWakeLock(){if(wakeLock){wakeLock.release();wakeLock=null;}}
+    async function enableWakeLock(){
+        try{ wakeLock=await navigator.wakeLock.request("screen"); }
+        catch(e){ console.log("WakeLock error", e); }
+    }
+    function disableWakeLock(){ if(wakeLock){ wakeLock.release(); wakeLock=null; } }
 
     toggleBtn.onclick=async ()=>{
         if(!listening){
@@ -61,7 +64,7 @@ if(!SpeechRecognition){
             unlockBtn.style.display="inline-block";
             lockDiv.style.display="block";
             await enableWakeLock();
-            info.textContent="Nagrywanie… powiedz cyfry po dwie (np. 'jedenaście dwadzieścia trzy')";
+            info.textContent="Nagrywanie… powiedz cyfry po dwie (np. '11 23')";
         }
     };
 
@@ -75,57 +78,48 @@ if(!SpeechRecognition){
         info.textContent="Nagrywanie zatrzymane.";
     };
 
-    // zamiana słów na cyfry (proste mapowanie dla 0-20,30,40,...90)
-    const wordToDigit={
-        "zero":"0","jeden":"1","dwa":"2","trzy":"3","cztery":"4","pięć":"5","piec":"5","sześć":"6","szesc":"6","siedem":"7","osiem":"8","dziewięć":"9",
-        "dziesięć":"10","jedenaście":"11","dwanaście":"12","trzynaście":"13","czternaście":"14","piętnaście":"15","pietnascie":"15",
-        "szesnaście":"16","szesnascie":"16","siedemnaście":"17","osiemnaście":"18","dziewiętnaście":"19","dziewietnascie":"19",
-        "dwadzieścia":"20","trzydzieści":"30","czterdzieści":"40","pięćdziesiąt":"50","piecdziesiat":"50","sześćdziesiąt":"60","szescdziesiat":"60","siedemdziesiąt":"70",
-        "osiemdziesiąt":"80","dziewięćdziesiąt":"90","dziewiecdziesiat":"90"
-    };
-
-    function wordsToDigits(text){
-        const words=text.toLowerCase().split(/\s+/);
-        const digits=[];
-        for(let w of words){
-            if(wordToDigit[w]) digits.push(wordToDigit[w]);
-        }
-        return digits;
-    }
-
     function addDigits(digits){
-        if(digits.length===0){info.textContent="Nie rozpoznano cyfr, powtórz nagranie"; return;}
-        let combined=digits.join('');
-        while(combined.length<4) combined+="-";
-        const row=table.insertRow();
-        row.insertCell().textContent=counter++;
-        row.insertCell().textContent=combined;
+        if(digits.length===0){ info.textContent="Nie rozpoznano cyfr, powtórz nagranie"; return; }
+        let combined = digits.join('');
+        while(combined.length < 4) combined += "-";
+
+        const row = table.insertRow();
+        row.insertCell().textContent = counter++;
+        row.insertCell().textContent = combined;
         row.classList.add("new-row");
         setTimeout(()=>row.classList.remove("new-row"),1000);
         info.textContent="Dodano numer: "+combined;
-        // feedback głosowy: wypowiada same cyfry
-        if('speechSynthesis' in window){
-            let speakStr=digits.join(' ');
-            window.speechSynthesis.speak(new SpeechSynthesisUtterance(speakStr));
-        }
+
+        // feedback głosowy z krótkim delay (działa na iOS)
+        setTimeout(()=>{
+            if('speechSynthesis' in window){
+                let speakStr = digits.join(' ');
+                window.speechSynthesis.speak(new SpeechSynthesisUtterance(speakStr));
+            }
+        },200);
     }
 
     recognition.onresult=(event)=>{
         const text=event.results[0][0].transcript.trim();
-        console.log("Rozpoznano frazę:",text);
-        const digits=wordsToDigits(text);
-        console.log("Wyciągnięte cyfry:",digits);
+        console.log("Rozpoznano frazę:", text);
+
+        // Wyciąga cyfry z tekstu
+        const digits = text.match(/\d+/g) || [];
+        console.log("Wyciągnięte cyfry:", digits);
+
         addDigits(digits);
     };
 
-    recognition.onerror=(e)=>{info.textContent="Błąd: "+e.error; console.log("Błąd:",e.error);};
+    recognition.onerror=(e)=>{ info.textContent="Błąd: "+e.error; console.log("Błąd:",e.error); };
 
     recognition.onend=()=>{
-        if(listening) setTimeout(()=>recognition.start(), isMobile?300:0);
+        if(listening){
+            setTimeout(()=>recognition.start(), isMobile?300:0);
+        }
     };
 }
 </script>
 
 </body>
 </html>
-77777
+`````
