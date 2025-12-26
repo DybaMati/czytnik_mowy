@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nasłuchiwanie cyfr uniwersalne</title>
+<title>Nasłuchiwanie cyfr stabilne</title>
 <style>
 body{font-family:Arial;padding:20px;}
 button{font-size:18px;padding:12px 20px;margin-top:10px;z-index:1001;position:relative;}
@@ -29,66 +29,73 @@ th,td{border:1px solid #000;padding:10px;font-size:22px;text-align:center;}
 </table>
 
 <script>
-let counter=1;
-let listening=false;
-let wakeLock=null;
-const table=document.getElementById("table");
-const toggleBtn=document.getElementById("toggle");
-const unlockBtn=document.getElementById("unlock");
-const lockDiv=document.getElementById("lock");
-const info=document.getElementById("info");
+let counter = 1;
+let listening = false;
+let wakeLock = null;
+let lastTranscript = ""; // do sprawdzania powtórek
 
-const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-if(!SpeechRecognition){
-    info.textContent="Twoja przeglądarka nie wspiera rozpoznawania mowy.";
+const table = document.getElementById("table");
+const toggleBtn = document.getElementById("toggle");
+const unlockBtn = document.getElementById("unlock");
+const lockDiv = document.getElementById("lock");
+const info = document.getElementById("info");
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SpeechRecognition) {
+    info.textContent = "Twoja przeglądarka nie wspiera rozpoznawania mowy.";
 } else {
-    const recognition=new SpeechRecognition();
-    recognition.lang="pl-PL";
-    recognition.interimResults=false;
+    const recognition = new SpeechRecognition();
+    recognition.lang = "pl-PL";
+    recognition.interimResults = false;
 
-    const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    recognition.continuous=!isMobile; // desktop: continuous, mobilnie: false
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    recognition.continuous = !isMobile; // desktop: continuous, mobilnie: false
 
-    async function enableWakeLock(){
-        try{ wakeLock=await navigator.wakeLock.request("screen"); }
-        catch(e){ console.log("WakeLock error", e); }
+    async function enableWakeLock() {
+        try { wakeLock = await navigator.wakeLock.request("screen"); }
+        catch(e) { console.log("WakeLock error", e); }
     }
-    function disableWakeLock(){ if(wakeLock){ wakeLock.release(); wakeLock=null; } }
+    function disableWakeLock() { if(wakeLock) { wakeLock.release(); wakeLock = null; } }
 
-    toggleBtn.onclick=async ()=>{
+    toggleBtn.onclick = async () => {
         if(!listening){
+            lastTranscript = "";
             recognition.start();
-            listening=true;
-            toggleBtn.style.display="none";
-            unlockBtn.style.display="inline-block";
-            lockDiv.style.display="block";
+            listening = true;
+            toggleBtn.style.display = "none";
+            unlockBtn.style.display = "inline-block";
+            lockDiv.style.display = "block";
             await enableWakeLock();
-            info.textContent="Nagrywanie… powiedz cyfry po dwie (np. '59 12')";
+            info.textContent = "Nagrywanie… powiedz cyfry po dwie (np. '59 12')";
         }
     };
 
-    unlockBtn.onclick=()=>{
+    unlockBtn.onclick = () => {
         recognition.stop();
-        listening=false;
-        toggleBtn.style.display="inline-block";
-        unlockBtn.style.display="none";
-        lockDiv.style.display="none";
+        listening = false;
+        toggleBtn.style.display = "inline-block";
+        unlockBtn.style.display = "none";
+        lockDiv.style.display = "none";
         disableWakeLock();
-        info.textContent="Nagrywanie zatrzymane.";
+        info.textContent = "Nagrywanie zatrzymane.";
     };
 
-    function addDigits(digits){
-        if(digits.length===0){ info.textContent="Nie rozpoznano cyfr, powtórz nagranie"; return; }
+    function addDigits(digits) {
+        if(digits.length === 0) { info.textContent = "Nie rozpoznano cyfr, powtórz nagranie"; return; }
 
         let combined = digits.join('');
         while(combined.length < 4) combined += "-";
+
+        // sprawdzamy, czy ostatni wiersz jest taki sam
+        const lastRow = table.rows[table.rows.length-1];
+        if(lastRow && lastRow.cells[1].textContent === combined) return;
 
         const row = table.insertRow();
         row.insertCell().textContent = counter++;
         row.insertCell().textContent = combined;
         row.classList.add("new-row");
         setTimeout(()=>row.classList.remove("new-row"),1000);
-        info.textContent="Dodano numer: "+combined;
+        info.textContent = "Dodano numer: " + combined;
 
         // szybki feedback głosowy
         if('speechSynthesis' in window){
@@ -98,22 +105,24 @@ if(!SpeechRecognition){
         }
     }
 
-    recognition.onresult=(event)=>{
-        const text=event.results[0][0].transcript.trim();
+    recognition.onresult = (event) => {
+        const text = event.results[0][0].transcript.trim();
+        if(text === lastTranscript) return; // ignoruj powtórki
+        lastTranscript = text;
+
         console.log("Rozpoznano frazę:", text);
 
-        // Wyciąga cyfry z tekstu
         const digits = text.match(/\d+/g) || [];
         console.log("Wyciągnięte cyfry:", digits);
 
         addDigits(digits);
     };
 
-    recognition.onerror=(e)=>{ info.textContent="Błąd: "+e.error; console.log("Błąd:",e.error); };
+    recognition.onerror = (e) => { info.textContent="Błąd: "+e.error; console.log("Błąd:", e.error); };
 
-    recognition.onend=()=>{
+    recognition.onend = () => {
         if(listening){
-            setTimeout(()=>recognition.start(), isMobile?100:0); // restart po krótkim delay
+            setTimeout(()=>recognition.start(), isMobile?100:0); // restart tylko po krótkim delay
         }
     };
 }
