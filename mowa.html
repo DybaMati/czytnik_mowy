@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nasluchiwanie cyfr - ciagle</title>
+<title>Nasluchiwanie cyfr - debug</title>
 <style>
 body { font-family: Arial; padding: 20px; }
 button { font-size: 18px; padding: 10px 20px; margin-top: 10px; }
@@ -13,10 +13,10 @@ th, td { border: 1px solid #000; padding: 10px; font-size: 22px; text-align: cen
 </head>
 <body>
 
-<h2>Nasluchiwanie cyfr - ciagle</h2>
+<h2>Nasluchiwanie cyfr - debug</h2>
 <button id="start">🎙 Start / Stop</button>
 <p id="info">Kliknij przycisk, aby rozpocząć nasłuchiwanie.</p>
-jijhkjhjhk
+
 <table id="table">
 <tr><th>#</th><th>Numer</th></tr>
 </table>
@@ -33,7 +33,7 @@ if(!SpeechRecognition){
 } else {
     const recognition = new SpeechRecognition();
     recognition.lang = "pl-PL";
-    recognition.continuous = true;  // <- ciagłe nasluchiwanie
+    recognition.continuous = true;
     recognition.interimResults = false;
 
     let listening = false;
@@ -42,7 +42,7 @@ if(!SpeechRecognition){
         if(!listening){
             recognition.start();
             listening = true;
-            info.textContent = "Nagrywanie… mow cyfry!";
+            info.textContent = "Nagrywanie… mów cyfry!";
             console.log("Rozpoczęto nasłuchiwanie");
         } else {
             recognition.stop();
@@ -53,10 +53,24 @@ if(!SpeechRecognition){
     };
 
     recognition.onresult = (event) => {
-        const text = event.results[event.results.length - 1][0].transcript.toLowerCase();
-        console.log("Rozpoznano:", text);
+        const resultIndex = event.resultIndex;
+        const transcript = event.results[resultIndex][0].transcript.toLowerCase().trim();
+        console.log("Rozpoznano tekst:", transcript);
+
         let digits = [];
-        text.split(/\s+/).forEach(word => { if(map[word]) digits.push(map[word]); });
+        transcript.split(/\s+/).forEach(word => {
+            if(map[word]) {
+                digits.push(map[word]);
+                console.log("Mapowanie:", word, "->", map[word]);
+            } else {
+                console.log("Nieznane słowo:", word);
+            }
+        });
+
+        if(digits.length === 0){
+            console.log("Nie znaleziono żadnej cyfry w rozpoznanym tekście");
+        }
+
         digits = digits.slice(0,4);
         while(digits.length < 4) digits.push("-");
         const row = table.insertRow();
@@ -74,12 +88,11 @@ if(!SpeechRecognition){
         console.log("Recognition ended");
         if(listening){
             console.log("Restartujemy nasłuchiwanie");
-            recognition.start();  // <- kontynuacja nasłuchiwania automatycznie
+            recognition.start();
         }
     };
 }
 </script>
 
-</body>gggggffff
+</body>
 </html>
-
