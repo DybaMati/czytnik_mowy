@@ -3,113 +3,109 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nasluchiwanie cyfr z feedbackiem</title>
+<title>Nasluchiwanie cyfr - uniwersalnie</title>
 <style>
-body { font-family: Arial; padding:20px; }
-button { font-size:18px; padding:12px 20px; margin-top:10px; z-index:1001; position:relative; }
-table { border-collapse: collapse; margin-top: 20px; width:100%; }
-th, td { border:1px solid #000; padding:10px; font-size:22px; text-align:center; }
-#lock { display:none; position:fixed; inset:0; background: rgba(0,0,0,0.6); z-index:1000; touch-action:none; }
-#lock span { color:#fff; font-size:20px; position:absolute; bottom:30px; width:100%; text-align:center; }
-#info { font-size:18px; margin-top:10px; color:#222; }
-.new-row { background:#cfc; transition: background 1s; }
+body{font-family:Arial;padding:20px;}
+button{font-size:18px;padding:12px 20px;margin-top:10px;z-index:1001;position:relative;}
+table{border-collapse:collapse;margin-top:20px;width:100%;}
+th,td{border:1px solid #000;padding:10px;font-size:22px;text-align:center;}
+#lock{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;touch-action:none;}
+#lock span{color:#fff;font-size:20px;position:absolute;bottom:30px;width:100%;text-align:center;}
+#info{font-size:18px;margin-top:10px;color:#222;}
+.new-row{background:#cfc;transition:background 1s;}
 </style>
 </head>
 <body>
 
-<h2>Nasluchiwanie cyfr z feedbackiem</h2>
+<h2>Nasluchiwanie cyfr uniwersalnie</h2>
 <button id="toggle">🎙 START</button>
 <button id="unlock" style="display:none;">⛔ STOP</button>
 <p id="info">Kliknij START aby rozpocząć nagrywanie.</p>
 
-<div id="lock">
-<span>Ekran zablokowany – nagrywanie aktywne</span>
-</div>
+<div id="lock"><span>Ekran zablokowany – nagrywanie aktywne</span></div>
 
 <table id="table">
 <tr><th>#</th><th>Numer</th></tr>
 </table>
 
 <script>
-let counter = 1;
-let listening = false;
-let wakeLock = null;
-const table = document.getElementById("table");
-const toggleBtn = document.getElementById("toggle");
-const unlockBtn = document.getElementById("unlock");
-const lockDiv = document.getElementById("lock");
-const info = document.getElementById("info");
+let counter=1;
+let listening=false;
+let wakeLock=null;
+const table=document.getElementById("table");
+const toggleBtn=document.getElementById("toggle");
+const unlockBtn=document.getElementById("unlock");
+const lockDiv=document.getElementById("lock");
+const info=document.getElementById("info");
 
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-const recognition = new SpeechRecognition();
+const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SpeechRecognition){info.textContent="Twoja przeglądarka nie wspiera rozpoznawania mowy.";}
+else{
+  const recognition=new SpeechRecognition();
+  recognition.lang="pl-PL";
+  recognition.continuous=false; // krótkie frazy, mobilnie działa lepiej
+  recognition.interimResults=false;
 
-recognition.lang = "pl-PL";
-recognition.continuous = true;
-recognition.interimResults = false;
+  async function enableWakeLock(){try{wakeLock=await navigator.wakeLock.request("screen");}catch(e){console.log("WakeLock error",e);}}
+  function disableWakeLock(){if(wakeLock){wakeLock.release();wakeLock=null;}}
 
-async function enableWakeLock(){ try { wakeLock = await navigator.wakeLock.request("screen"); } catch(e){ console.log("WakeLock error",e); } }
-function disableWakeLock(){ if(wakeLock){ wakeLock.release(); wakeLock=null; } }
+  toggleBtn.onclick=async ()=>{
+    if(!listening){
+      startRecognition();
+      listening=true;
+      toggleBtn.style.display="none";
+      unlockBtn.style.display="inline-block";
+      lockDiv.style.display="block";
+      await enableWakeLock();
+      info.textContent="Nagrywanie… mów cyfry po 2.";
+    }
+  };
 
-toggleBtn.onclick = async () => {
-  if(!listening){
-    recognition.start();
-    listening = true;
-    toggleBtn.style.display="none";
-    unlockBtn.style.display="inline-block";
-    lockDiv.style.display="block";
-    await enableWakeLock();
-    info.textContent="Nagrywanie…";
+  unlockBtn.onclick=()=>{
+    recognition.stop();
+    listening=false;
+    toggleBtn.style.display="inline-block";
+    unlockBtn.style.display="none";
+    lockDiv.style.display="none";
+    disableWakeLock();
+    info.textContent="Nagrywanie zatrzymane.";
+  };
+
+  function speakFeedback(text){if('speechSynthesis' in window){const u=new SpeechSynthesisUtterance(text);window.speechSynthesis.speak(u);}}
+
+  function addDigits(digits){
+    for(let i=0;i<digits.length;i+=4){
+      const chunk=digits.slice(i,i+4);
+      while(chunk.length<4) chunk.push("-");
+      const row=table.insertRow();
+      row.insertCell().textContent=counter++;
+      row.insertCell().textContent=chunk.join("");
+      row.classList.add("new-row");
+      setTimeout(()=>row.classList.remove("new-row"),1000);
+      info.textContent="Zapisano numer: "+chunk.join("");
+      speakFeedback("Zapisano numer: "+chunk.join(""));
+    }
   }
-};
 
-unlockBtn.onclick = () => {
-  recognition.stop();
-  listening=false;
-  toggleBtn.style.display="inline-block";
-  unlockBtn.style.display="none";
-  lockDiv.style.display="none";
-  disableWakeLock();
-  info.textContent="Nagrywanie zatrzymane.";
-};
+  recognition.onresult=(event)=>{
+    const text=event.results[0][0].transcript.trim();
+    console.log("Rozpoznano:",text);
+    const digits=text.replace(/\D/g,'').split('');
+    console.log("Wyciągnięte cyfry:",digits);
+    if(digits.length===0){info.textContent="Brak cyfr – powtórz nagranie";speakFeedback("Brak cyfr, powtórz nagranie");}
+    else addDigits(digits);
+  };
 
-function speakFeedback(text){
-  if('speechSynthesis' in window){
-    const utter = new SpeechSynthesisUtterance(text);
-    window.speechSynthesis.speak(utter);
-  }
+  recognition.onerror=(e)=>{info.textContent="Błąd: "+e.error; console.log("Błąd:",e.error);};
+
+  recognition.onend=()=>{
+    if(listening) setTimeout(startRecognition,200); // restart krótkiej frazy mobilnie
+  };
+
+  function startRecognition(){recognition.start();}
 }
-
-function addDigits(digits){
-  for(let i=0;i<digits.length;i+=4){
-    const chunk = digits.slice(i,i+4);
-    while(chunk.length<4) chunk.push("-");
-    const row = table.insertRow();
-    row.insertCell().textContent=counter++;
-    row.insertCell().textContent=chunk.join("");
-    row.classList.add("new-row");
-    setTimeout(()=>row.classList.remove("new-row"),1000);
-    info.textContent="Zapisano numer: "+chunk.join("");
-    speakFeedback("Zapisano numer: " + chunk.join(""));
-  }
-}
-
-recognition.onresult = (event)=>{
-  const text = event.results[event.resultIndex][0].transcript.trim();
-  console.log("Rozpoznano:", text);
-  const digits = text.replace(/\D/g,'').split('');
-  console.log("Wyciągnięte cyfry:", digits);
-  if(digits.length===0){
-    info.textContent="Brak cyfr – powtórz nagranie";
-    speakFeedback("Brak cyfr, powtórz nagranie");
-  } else {
-    addDigits(digits);
-  }
-};
-
-recognition.onerror = (e)=>{ info.textContent="Błąd: "+e.error; console.log("Błąd:", e.error); };
-recognition.onend = ()=>{ if(listening) recognition.start(); };
 </script>
 
 </body>
 </html>
-111111
+44444
