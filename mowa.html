@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cyfry po 4 – z logami i bez błędów</title>
+    <title>Cyfry po 4 – stabilna na iPhone</title>
     <style>
         body { font-family: -apple-system, Arial, sans-serif; text-align: center; margin: 0; padding: 20px; background: #f4f6f9; }
         h1 { font-size: 28px; color: #2c3e50; }
@@ -16,29 +16,31 @@
     </style>
 </head>
 <body>
-    <h1>Grupy po 4 cyfry – debug wersja</h1>
+    <h1>Grupy po 4 cyfry</h1>
     <button id="start">▶ Rozpocznij</button>
     <button id="stop">■ Zatrzymaj</button>
-    <div id="status">Kliknij Rozpocznij – sprawdź konsolę!</div>
+    <div id="status">Użyj Safari na iPhonie!</div>
     <table id="tabela"><thead><tr><th>Grupy</th></tr></thead><tbody id="rows"></tbody></table>
     <div class="info">
-        <strong>Sprawdź konsolę przeglądarki!</strong><br>
-        Na iPhonie: podłącz do Maca → Safari na Macu → Develop → Twój iPhone → strona.<br>
-        Zobaczysz, czy przyciski klikają, czy mikrofon startuje, czy grupy się dodają, czy speak działa.
+        <strong>Na iPhonie:</strong><br>
+        • Tylko Safari (Chrome nie łapie mowy)<br>
+        • Grupy pojawiają się od razu<br>
+        • Głos może mówić z opóźnieniem lub na końcu (ograniczenie Apple – nie da się lepiej)
     </div>
 
     <script>
-        console.log('%c=== STRONA ZAŁADOWANA ===', 'color: white; background: #2c3e50; font-size: 18px; padding: 10px;');
+        console.clear();
+        console.log('%cSTART APLIKACJI', 'color: #f1c40f; font-size: 20px; background: #2c3e50; padding: 10px;');
 
         const tbody = document.getElementById('rows');
         const statusEl = document.getElementById('status');
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            console.error('%cBRAK SpeechRecognition – nie działa na tej przeglądarce!', 'color: red; font-size: 20px;');
-            alert('Rozpoznawanie mowy nie działa tutaj. Na iPhonie użyj Safari!');
+            alert('Brak wsparcia – użyj Safari!');
+            console.error('NO SpeechRecognition');
         } else {
-            console.log('%cSpeechRecognition dostępny', 'color: green; font-weight: bold;');
+            console.log('%cSpeechRecognition OK', 'color: green;');
         }
 
         const recognition = new SpeechRecognition();
@@ -47,53 +49,25 @@
         recognition.interimResults = true;
 
         let buffer = '';
-        let isPausedForSpeak = false;
+        let speakQueue = [];
 
-        const digitToPolish = {
-            '0':'zero','1':'jeden','2':'dwa','3':'trzy','4':'cztery',
-            '5':'pięć','6':'sześć','7':'siedem','8':'osiem','9':'dziewięć'
-        };
+        const digitToPolish = {'0':'zero','1':'jeden','2':'dwa','3':'trzy','4':'cztery','5':'pięć','6':'sześć','7':'siedem','8':'osiem','9':'dziewięć'};
 
-        function speakGroup(group) {
-            console.log('%c>>> MÓWIĘ grupę:', 'color: #e67e22; font-size: 18px; font-weight: bold;', group);
+        function speakNext() {
+            if (speakQueue.length === 0) return;
+            const group = speakQueue.shift();
+            console.log('%cMÓWIĘ:', 'color: #e67e22; font-size: 18px;', group);
             const words = group.split('').map(d => digitToPolish[d]);
-            const text = words.join(' ');
-            const utter = new SpeechSynthesisUtterance(text);
+            const utter = new SpeechSynthesisUtterance(words.join(' '));
             utter.lang = 'pl-PL';
             utter.rate = 1.8;
-            utter.volume = 1.0;
-
-            utter.onstart = () => console.log('%cSPEAK: start', 'color: #27ae60;', text);
-            utter.onend = () => console.log('%cSPEAK: koniec', 'color: #27ae60;', text);
-            utter.onerror = (e) => console.error('%cSPEAK: błąd', 'color: red;', e.error);
-
+            utter.onend = () => setTimeout(speakNext, 500); // kolejne z opóźnieniem
             speechSynthesis.speak(utter);
-        }
-
-        function pauseAndSpeak(group) {
-            if (isPausedForSpeak) {
-                console.warn('%cIgnoruję – już pauzowane', 'color: orange;');
-                return;
-            }
-            console.log('%cPAUZUJĘ mikrofon na 1.8s i mówię:', 'color: #9b59b6; font-weight: bold;', group);
-            isPausedForSpeak = true;
-            recognition.stop();
-
-            speakGroup(group);
-
-            setTimeout(() => {
-                console.log('%cRESTART mikrofonu');
-                isPausedForSpeak = false;
-                try {
-                    recognition.start();
-                } catch (e) {
-                    console.error('%cBłąd restartu:', 'color: red;', e);
-                }
-            }, 1800); // zmień na 1500-2500 jeśli za krótko/długo
+            setTimeout(speakNext, 1000); // dodatkowe pchnięcie
         }
 
         function addGroup(group) {
-            console.log('%cDODAJĘ GRUPĘ:', 'color: #3498db; font-size: 18px; font-weight: bold;', group);
+            console.log('%cNOWA GRUPA:', 'color: #3498db; font-size: 18px;', group);
             const row = document.createElement('tr');
             const cell = document.createElement('td');
             cell.textContent = group;
@@ -101,13 +75,13 @@
             tbody.appendChild(row);
             row.scrollIntoView({behavior:'smooth'});
 
-            pauseAndSpeak(group);
+            speakQueue.push(group);
+            speakNext();
 
-            statusEl.textContent = `Dodano i powtarzam: ${group}`;
+            statusEl.textContent = `Dodano: ${group}`;
         }
 
         function processBuffer() {
-            console.log('%cBufor:', 'color: #f1c40f;', buffer);
             while (buffer.length >= 4) {
                 const group = buffer.substring(0, 4);
                 buffer = buffer.substring(4);
@@ -115,55 +89,42 @@
             }
         }
 
-        recognition.onstart = () => {
-            console.log('%cMIKROFON: start', 'color: #27ae60; font-size: 18px;');
-            statusEl.textContent = 'Słucham!';
-        };
-
-        recognition.onend = () => {
-            console.log('%cMIKROFON: end (pauza?', isPausedForSpeak, ')');
-            if (!isPausedForSpeak) statusEl.textContent = 'Zatrzymano';
-        };
-
-        recognition.onerror = (event) => {
-            console.error('%cBŁĄD mikrofonu:', 'color: red;', event.error);
-            statusEl.textContent = 'Błąd: ' + event.error;
-        };
-
         recognition.onresult = (event) => {
-            if (isPausedForSpeak) {
-                console.log('%cIgnoruję wynik – pauza');
-                return;
-            }
-
-            let hasNew = false;
+            console.log('%cWYNIK ROZPOZNAWANIA', 'color: #9b59b6;');
+            let hasFinal = false;
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const transcript = event.results[i][0].transcript;
-                console.log('%cSurowy tekst:', 'color: gray;', transcript);
-                const digits = transcript.trim().replace(/[^0-9]/g, '');
-                console.log('%cCyfry:', 'color: #9b59b6;', digits || '(brak)');
+                console.log('Tekst:', transcript);
+                const digits = transcript.replace(/[^0-9]/g, '');
                 if (digits && event.results[i].isFinal) {
                     buffer += digits;
-                    hasNew = true;
-                    console.log('%cDodano do bufora →', 'color: green;', buffer);
+                    hasFinal = true;
+                    console.log('Bufor:', buffer);
                 }
             }
-            if (hasNew) processBuffer();
+            if (hasFinal) processBuffer();
+        };
+
+        recognition.onstart = () => console.log('%cMIKROFON START', 'color: green;');
+        recognition.onend = () => {
+            console.log('%cMIKROFON END – mówię resztę');
+            speakNext(); // na końcu dokończ kolejkę
         };
 
         document.getElementById('start').onclick = () => {
-            console.clear();
-            console.log('%c=== KLIKNIĘTO ROZPOCZNIJ ===', 'color: #f1c40f; background: #2c3e50; font-size: 20px; padding: 10px;');
+            console.log('%cKLIK ROZPOCZNIJ', 'color: #f1c40f; font-size: 20px;');
             buffer = '';
+            speakQueue = [];
             tbody.innerHTML = '';
             speechSynthesis.speak(new SpeechSynthesisUtterance('')); // odblokowanie dźwięku
             recognition.start();
+            statusEl.textContent = 'Mów cyfry!';
         };
 
         document.getElementById('stop').onclick = () => {
-            console.log('%c=== KLIKNIĘTO ZATRZYMAJ ===', 'color: red; font-size: 18px;');
+            console.log('%cKLIK ZATRZYMAJ', 'color: red;');
             recognition.stop();
         };
     </script>
 </body>
-</html>hhhh
+</html>wwww
