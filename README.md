@@ -1,1 +1,0 @@
-# czytnik_mowy
